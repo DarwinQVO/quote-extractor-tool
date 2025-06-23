@@ -434,29 +434,34 @@ export async function POST(request: NextRequest) {
       const audioFileName = `audio${fileExtension}`;
       console.log(`Creating file object with name: ${audioFileName}`);
       
-      // Create a File-like object for OpenAI (Node.js compatible)
-      const mimeType = fileExtension === '.m4a' ? 'audio/mp4' : 
+      // For OpenAI API in Node.js, we need to use fs.createReadStream
+      // This is the officially recommended approach for the OpenAI Node.js SDK
+      const { createReadStream } = await import('fs');
+      
+      // Ensure we have a file with the correct extension  
+      const correctExtensionPath = actualAudioPath.replace(/\.[^.]+$/, fileExtension);
+      if (correctExtensionPath !== actualAudioPath) {
+        await fs.copyFile(actualAudioPath, correctExtensionPath);
+        actualAudioPath = correctExtensionPath;
+      }
+      
+      // Create the stream that OpenAI SDK expects
+      const audioFile = createReadStream(actualAudioPath) as any;
+      
+      // Add required properties for OpenAI SDK
+      audioFile.name = audioFileName;
+      audioFile.type = fileExtension === '.m4a' ? 'audio/mp4' : 
                       fileExtension === '.mp3' ? 'audio/mpeg' :
                       fileExtension === '.wav' ? 'audio/wav' :
                       fileExtension === '.ogg' ? 'audio/ogg' :
                       'audio/webm';
       
-      // Create a Blob first, then add File properties
-      const audioBlob = new Blob([audioBuffer], { type: mimeType });
-      
-      // Add File-like properties
-      const audioFile = Object.assign(audioBlob, {
-        name: audioFileName,
-        lastModified: Date.now(),
-        webkitRelativePath: ''
-      }) as File;
-      
       setProgress(sourceId, 65);
       
-      console.log('About to start OpenAI transcription with file object...');
+      console.log('About to start OpenAI transcription with file stream...');
       console.log('Audio file name:', audioFile.name);
       console.log('Audio file type:', audioFile.type);
-      console.log('Audio file size:', audioFile.size);
+      console.log('Audio file path:', audioFile.path);
       
       let transcription: {
         segments?: Array<{ start: number; end: number; text: string }>;
