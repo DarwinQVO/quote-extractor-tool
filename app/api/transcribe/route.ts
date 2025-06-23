@@ -377,7 +377,7 @@ export async function POST(request: NextRequest) {
         });
         
         const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Transcription timeout after 5 minutes')), 5 * 60 * 1000)
+          setTimeout(() => reject(new Error('Transcription timeout after 50 seconds')), 50 * 1000)
         );
         
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
