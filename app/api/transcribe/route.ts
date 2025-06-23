@@ -45,34 +45,20 @@ let ytDlpWrap: YTDlpWrap | null = null;
 
 async function getYTDlpWrap() {
   if (!ytDlpWrap) {
-    // Try multiple approaches to find yt-dlp
-    const possiblePaths = [
-      'yt-dlp',                    // System PATH
-      '/usr/local/bin/yt-dlp',    // Common system location
-      '/usr/bin/yt-dlp',          // Alternative system location
-      'python3 -m yt_dlp',       // Python module approach
-    ];
+    console.log('🔧 Initializing yt-dlp-wrap with auto-download...');
     
-    let initialized = false;
-    
-    for (const binaryPath of possiblePaths) {
-      try {
-        console.log(`🔍 Trying yt-dlp binary: ${binaryPath}`);
-        ytDlpWrap = new YTDlpWrap(binaryPath);
-        
-        // Test if it works
-        await ytDlpWrap.execPromise(['--version']);
-        console.log(`✅ Successfully using yt-dlp binary: ${binaryPath}`);
-        initialized = true;
-        break;
-      } catch (error) {
-        console.log(`❌ Failed with ${binaryPath}:`, error instanceof Error ? error.message : error);
-      }
-    }
-    
-    if (!initialized) {
-      console.log('⚠️ All system paths failed, using default auto-download');
-      ytDlpWrap = new YTDlpWrap(); // Fall back to download
+    try {
+      // Use auto-download approach - this is usually more reliable in containers
+      ytDlpWrap = new YTDlpWrap();
+      
+      // Force download the binary if needed
+      console.log('📥 Ensuring yt-dlp binary is available...');
+      await ytDlpWrap.getBinaryVersion();
+      
+      console.log('✅ yt-dlp binary is ready');
+    } catch (error) {
+      console.error('❌ Failed to initialize yt-dlp-wrap:', error);
+      throw error;
     }
   }
   return ytDlpWrap;

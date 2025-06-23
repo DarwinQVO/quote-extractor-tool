@@ -19,3 +19,7 @@ cmd = "npm run build && npm start"
 [variables]
 YOUTUBE_DL_SKIP_PYTHON_CHECK = "1"
 NODE_ENV = "production"
+# Allow yt-dlp-wrap to download binaries
+YTDLP_BINARY_DOWNLOAD = "1"
+# Set Python path
+PYTHONPATH = "/usr/bin/python3"
