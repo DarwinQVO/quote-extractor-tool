@@ -209,7 +209,7 @@ export async function POST(request: NextRequest) {
         let lastError: Error | null = null;
         let finalPath = actualAudioPath;
 
-        // Strategy 1: Try with m4a format first (most compatible)
+        // Strategy 1: Try with m4a format first (most compatible with OpenAI)
         console.log('=== STRATEGY 1: M4A Download ===');
         try {
           const m4aPath = actualAudioPath.replace('.webm', '.m4a');
@@ -217,8 +217,10 @@ export async function POST(request: NextRequest) {
           
           const m4aResult = await ytdl.execPromise([
             url,
-            '--format', 'bestaudio[ext=m4a]/bestaudio',
+            '--format', 'bestaudio[ext=m4a]/bestaudio[ext=mp4]/bestaudio',
             '--output', m4aPath,
+            '--extract-audio',
+            '--audio-format', 'm4a',
             '--no-warnings',
             '--verbose'
           ]);
@@ -413,6 +415,17 @@ export async function POST(request: NextRequest) {
       console.log('Audio file details:');
       console.log('- Path:', actualAudioPath);
       console.log('- Extension:', fileExtension);
+      
+      // Validate that we have a supported format
+      const supportedExtensions = ['.flac', '.m4a', '.mp3', '.mp4', '.mpeg', '.mpga', '.oga', '.ogg', '.wav', '.webm'];
+      if (!supportedExtensions.includes(fileExtension)) {
+        throw new Error(`Unsupported audio format: ${fileExtension}. Supported: ${supportedExtensions.join(', ')}`);
+      }
+      
+      // Get file stats for logging
+      const fileStats = await fs.stat(actualAudioPath);
+      console.log(`- File size: ${fileStats.size} bytes`);
+      console.log(`- File modified: ${fileStats.mtime}`);
       
       // Create a read stream for the audio file - this is the proper way for Node.js
       const { createReadStream } = await import('fs');
