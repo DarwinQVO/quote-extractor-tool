@@ -30,8 +30,16 @@ export interface TranscriptWord {
   speaker?: string;
 }
 
+export interface Segment {
+  speaker: string;
+  start: number;
+  end: number;
+  text: string;
+}
+
 export interface Transcript {
   sourceId: string;
-  words: TranscriptWord[];
-  speakers: Array<{ id: string; label: string }>;
+  segments: Segment[];
+  words?: TranscriptWord[];
+  speakers?: Array<{ id: string; label: string }>;
 }

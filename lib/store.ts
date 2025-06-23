@@ -6,6 +6,7 @@ interface AppState {
   quotes: Quote[];
   transcripts: Map<string, Transcript>;
   activeSourceId: string | null;
+  transcriptionProgress: Map<string, number>;
   
   addSource: (url: string) => string;
   updateSource: (id: string, updates: Partial<VideoSource>) => void;
@@ -16,6 +17,7 @@ interface AppState {
   removeQuote: (id: string) => void;
   
   setTranscript: (sourceId: string, transcript: Transcript) => void;
+  setTranscriptionProgress: (sourceId: string, progress: number) => void;
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -23,6 +25,7 @@ export const useStore = create<AppState>((set) => ({
   quotes: [],
   transcripts: new Map(),
   activeSourceId: null,
+  transcriptionProgress: new Map(),
   
   addSource: (url) => {
     const id = Date.now().toString();
@@ -81,5 +84,12 @@ export const useStore = create<AppState>((set) => ({
       const newTranscripts = new Map(state.transcripts);
       newTranscripts.set(sourceId, transcript);
       return { transcripts: newTranscripts };
+    }),
+    
+  setTranscriptionProgress: (sourceId, progress) =>
+    set((state) => {
+      const newProgress = new Map(state.transcriptionProgress);
+      newProgress.set(sourceId, progress);
+      return { transcriptionProgress: newProgress };
     }),
 }));
