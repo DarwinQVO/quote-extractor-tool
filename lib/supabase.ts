@@ -5,6 +5,11 @@ let supabaseClient: ReturnType<typeof createClient> | null = null;
 
 function getSupabaseClient() {
   if (!supabaseClient) {
+    // First check if we're in a browser environment
+    if (typeof window === 'undefined') {
+      throw new Error('Supabase client can only be initialized in browser environment');
+    }
+    
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     
@@ -18,22 +23,28 @@ function getSupabaseClient() {
       allEnvKeys: Object.keys(process.env).filter(key => key.includes('SUPABASE')),
     });
     
+    // Special handling for build-placeholder
+    if (supabaseUrl === 'build-placeholder' || supabaseAnonKey === 'build-placeholder') {
+      console.warn('⚠️ Supabase environment variables are placeholders. Database features will be disabled.');
+      // Return a mock client that won't crash but won't work
+      return {
+        from: () => ({
+          select: () => Promise.resolve({ data: [], error: new Error('Supabase not configured') }),
+          insert: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+          update: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+          delete: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+          upsert: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+        })
+      } as any;
+    }
+    
     // Validate URLs during runtime only
-    if (!supabaseUrl || supabaseUrl === 'build-placeholder' || supabaseUrl.trim() === '') {
+    if (!supabaseUrl || supabaseUrl.trim() === '') {
       throw new Error(`NEXT_PUBLIC_SUPABASE_URL environment variable is required. Current value: "${supabaseUrl}"`);
     }
     
-    if (!supabaseAnonKey || supabaseAnonKey === 'build-placeholder' || supabaseAnonKey.trim() === '') {
+    if (!supabaseAnonKey || supabaseAnonKey.trim() === '') {
       throw new Error(`NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable is required. Current value: "${supabaseAnonKey ? supabaseAnonKey.substring(0, 10) + '...' : 'MISSING'}"`);
-    }
-    
-    // Only log in development
-    if (process.env.NODE_ENV === 'development') {
-      console.log('🔧 Supabase Config:', {
-        url: supabaseUrl,
-        keyLength: supabaseAnonKey?.length || 0,
-        keyExists: !!supabaseAnonKey
-      });
     }
     
     supabaseClient = createClient(supabaseUrl, supabaseAnonKey);

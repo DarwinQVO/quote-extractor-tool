@@ -2,14 +2,15 @@
 nixPkgs = ["nodejs_20", "python3", "ffmpeg"]
 
 [phases.install]
-cmds = ["YOUTUBE_DL_SKIP_PYTHON_CHECK=1 npm ci"]
+cmds = ["npm ci"]
 
 [phases.build]
-cmds = ["npm run build"]
+# Skip build phase - will build at runtime with proper env vars
+cmds = ["echo 'Skipping build phase - will build at runtime'"]
 
 [start]
-cmd = "npm start"
+# Build and start with actual environment variables
+cmd = "npm run build && npm start"
 
 [variables]
 YOUTUBE_DL_SKIP_PYTHON_CHECK = "1"
-NODE_ENV = "production"

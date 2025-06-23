@@ -1,6 +1,8 @@
 [build]
-builder = "dockerfile"
-dockerfilePath = "Dockerfile"
+builder = "nixpacks"
 
 [deploy]
 restartPolicyType = "never"
+healthcheckPath = "/"
+healthcheckTimeout = 100
+numReplicas = 1
