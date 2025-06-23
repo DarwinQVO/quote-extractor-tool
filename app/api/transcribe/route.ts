@@ -432,13 +432,21 @@ export async function POST(request: NextRequest) {
       console.log('- MIME type:', mimeType);
       console.log('- File name:', fileName);
       
-      const audioBlob = new File([audioFile], fileName, { type: mimeType });
+      // Create a proper Blob/File for OpenAI API
+      const audioBlob = new Blob([audioFile], { type: mimeType });
+      
+      // For OpenAI API, we need to create a File-like object with the right properties
+      const audioFileForAPI = Object.assign(audioBlob, {
+        name: fileName,
+        lastModified: Date.now(),
+      }) as File;
       
       setProgress(sourceId, 65);
       
       console.log('About to start OpenAI transcription...');
-      console.log('Audio blob size:', audioBlob.size);
-      console.log('Audio blob type:', audioBlob.type);
+      console.log('Audio file size:', audioFileForAPI.size);
+      console.log('Audio file type:', audioFileForAPI.type);
+      console.log('Audio file name:', audioFileForAPI.name);
       
       let transcription: {
         segments?: Array<{ start: number; end: number; text: string }>;
@@ -449,7 +457,7 @@ export async function POST(request: NextRequest) {
         // Add timeout to prevent hanging
         const openai = getOpenAIClient();
         const transcriptionPromise = openai.audio.transcriptions.create({
-          file: audioBlob,
+          file: audioFileForAPI,
           model: 'whisper-1',
           response_format: 'verbose_json',
           timestamp_granularities: ['segment', 'word'],
