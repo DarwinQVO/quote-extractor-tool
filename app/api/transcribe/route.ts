@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { OpenAI } from 'openai';
-import { prisma } from '@/lib/prisma';
+import { prisma, ensureDatabaseTables } from '@/lib/prisma';
 import { cleanSegments, performBasicDiarization } from '@/lib/cleanTranscript';
 import { Segment } from '@/lib/types';
 import YTDlpWrap from 'yt-dlp-wrap';
@@ -51,13 +51,50 @@ async function getYTDlpWrap() {
 }
 
 export async function POST(request: NextRequest) {
-  const { sourceId, url } = await request.json();
+  console.log('🚀 Transcription request started');
+  
+  let sourceId, url;
+  try {
+    const body = await request.json();
+    sourceId = body.sourceId;
+    url = body.url;
+    console.log('📝 Request parsed:', { sourceId, url: url?.substring(0, 50) + '...' });
+  } catch (error) {
+    console.error('❌ Failed to parse request body:', error);
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+  }
   
   if (!sourceId || !url) {
+    console.error('❌ Missing required fields:', { sourceId: !!sourceId, url: !!url });
     return NextResponse.json({ error: 'Missing sourceId or url' }, { status: 400 });
   }
   
   try {
+    console.log('🔍 Checking OpenAI client...');
+    try {
+      const openaiTest = getOpenAIClient();
+      console.log('✅ OpenAI client initialized successfully');
+    } catch (openaiError) {
+      console.error('❌ OpenAI client failed:', openaiError);
+      return NextResponse.json({
+        error: 'OpenAI configuration error',
+        details: openaiError instanceof Error ? openaiError.message : 'Unknown OpenAI error'
+      }, { status: 500 });
+    }
+    
+    console.log('🗄️ Ensuring database tables exist...');
+    try {
+      await ensureDatabaseTables();
+      console.log('✅ Database tables verified');
+    } catch (dbError) {
+      console.error('❌ Database initialization failed:', dbError);
+      return NextResponse.json({
+        error: 'Database initialization error',
+        details: dbError instanceof Error ? dbError.message : 'Unknown database error'
+      }, { status: 500 });
+    }
+    
+    console.log('🗄️ Checking for existing transcript...');
     // Check if transcript already exists and is recent
     const existingTranscript = await prisma.transcript.findUnique({
       where: { sourceId },
