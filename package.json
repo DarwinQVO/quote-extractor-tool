@@ -31,7 +31,6 @@
     "react-player": "^2.16.0",
     "tailwind-merge": "^3.3.1",
     "tailwindcss-animate": "^1.0.7",
-    "youtube-dl-exec": "^3.0.22",
     "yt-dlp-wrap": "^2.3.12",
     "ytdl-core": "^4.11.5",
     "zustand": "^5.0.5"

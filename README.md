@@ -16,7 +16,7 @@ A powerful web application that extracts quotes from YouTube videos with perfect
 
 ## 🚀 Live Demo
 
-**[Click here to access the app](https://quote-extractor-tool.vercel.app)** *(will be live after Vercel deployment)*
+**[Click here to access the app](https://quote-extractor-tool-production.up.railway.app)** *(will be live after Railway deployment)*
 
 ## 📋 GitHub Repository
 
@@ -30,7 +30,7 @@ A powerful web application that extracts quotes from YouTube videos with perfect
 - **Database**: Supabase (PostgreSQL)
 - **Transcription**: OpenAI Whisper API
 - **Video Processing**: yt-dlp
-- **Deployment**: Vercel
+- **Deployment**: Railway (supports long video processing)
 
 ## 📱 How to Use
 
@@ -85,10 +85,29 @@ A powerful web application that extracts quotes from YouTube videos with perfect
 - **Secure Storage**: Enterprise-grade Supabase security
 - **Open Source**: Full transparency in code
 
+## 🚀 Railway Deployment
+
+This app is optimized for Railway deployment to handle long video processing without timeout limits.
+
+### Environment Variables Required:
+```
+OPENAI_API_KEY=your_openai_api_key
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+YOUTUBE_DL_SKIP_PYTHON_CHECK=1
+NODE_ENV=production
+```
+
+### Deployment Steps:
+1. Connect your GitHub repository to Railway
+2. Add the environment variables above
+3. Railway will automatically detect the configuration files
+4. Deploy and enjoy unlimited video processing time!
+
 ---
 
 *Built with ❤️ for efficient quote extraction and citation management*
 
 ---
 
-**Status**: ✅ Ready for production deployment
+**Status**: ✅ Ready for production deployment on Railway
