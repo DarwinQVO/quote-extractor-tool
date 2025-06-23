@@ -408,45 +408,23 @@ export async function POST(request: NextRequest) {
       // Transcribe with OpenAI Whisper
       console.log('Starting transcription with OpenAI Whisper...');
       
-      const audioFile = await fs.readFile(actualAudioPath);
-      
       // Determine correct file type based on actual file extension
       const fileExtension = path.extname(actualAudioPath).toLowerCase();
-      let mimeType = 'audio/webm';
-      let fileName = `${sourceId}.webm`;
-      
-      if (fileExtension === '.m4a') {
-        mimeType = 'audio/mp4';
-        fileName = `${sourceId}.m4a`;
-      } else if (fileExtension === '.mp3') {
-        mimeType = 'audio/mpeg';
-        fileName = `${sourceId}.mp3`;
-      } else if (fileExtension === '.mp4') {
-        mimeType = 'audio/mp4';
-        fileName = `${sourceId}.mp4`;
-      }
-      
       console.log('Audio file details:');
       console.log('- Path:', actualAudioPath);
       console.log('- Extension:', fileExtension);
-      console.log('- MIME type:', mimeType);
-      console.log('- File name:', fileName);
       
-      // Create a proper Blob/File for OpenAI API
-      const audioBlob = new Blob([audioFile], { type: mimeType });
+      // Create a read stream for the audio file - this is the proper way for Node.js
+      const { createReadStream } = await import('fs');
+      const audioStream = createReadStream(actualAudioPath);
       
-      // For OpenAI API, we need to create a File-like object with the right properties
-      const audioFileForAPI = Object.assign(audioBlob, {
-        name: fileName,
-        lastModified: Date.now(),
-      }) as File;
+      // Add the proper filename for OpenAI API
+      (audioStream as any).path = actualAudioPath;
       
       setProgress(sourceId, 65);
       
-      console.log('About to start OpenAI transcription...');
-      console.log('Audio file size:', audioFileForAPI.size);
-      console.log('Audio file type:', audioFileForAPI.type);
-      console.log('Audio file name:', audioFileForAPI.name);
+      console.log('About to start OpenAI transcription with file stream...');
+      console.log('Audio stream path:', audioStream.path);
       
       let transcription: {
         segments?: Array<{ start: number; end: number; text: string }>;
@@ -457,7 +435,7 @@ export async function POST(request: NextRequest) {
         // Add timeout to prevent hanging
         const openai = getOpenAIClient();
         const transcriptionPromise = openai.audio.transcriptions.create({
-          file: audioFileForAPI,
+          file: audioStream,
           model: 'whisper-1',
           response_format: 'verbose_json',
           timestamp_granularities: ['segment', 'word'],
