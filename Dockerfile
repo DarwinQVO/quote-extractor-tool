@@ -23,22 +23,14 @@ COPY . .
 # Generate Prisma client
 RUN npx prisma generate
 
-# Set temporary environment variables for build (will be overridden at runtime)
-ENV OPENAI_API_KEY=build-placeholder
-ENV NEXT_PUBLIC_SUPABASE_URL=build-placeholder
-ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=build-placeholder
+# Set database URL for Prisma during build
 ENV DATABASE_URL=file:./dev.db
 
-# Build the application
-RUN npm run build
-
-# Remove build-time environment variables (they will be set at runtime)
-ENV OPENAI_API_KEY=
-ENV NEXT_PUBLIC_SUPABASE_URL=
-ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=
+# Skip build in Dockerfile - Railway will handle it
+# This avoids the placeholder issue
 
 # Expose port
 EXPOSE 3000
 
-# Start the application
-CMD ["npm", "start"]
+# Start script that builds and then starts
+CMD ["sh", "-c", "npm run build && npm start"]

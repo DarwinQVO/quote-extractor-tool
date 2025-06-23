@@ -4,11 +4,3 @@ dockerfilePath = "Dockerfile"
 
 [deploy]
 restartPolicyType = "never"
-
-[build.env]
-YOUTUBE_DL_SKIP_PYTHON_CHECK = "1"
-NODE_ENV = "production"
-
-[deploy.env]
-YOUTUBE_DL_SKIP_PYTHON_CHECK = "1"
-NODE_ENV = "production"
