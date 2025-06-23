@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js'
-import { getEnvSafe, hasEnv } from '@/lib/env'
 
 // Lazy initialization to avoid build-time errors
 let supabaseClient: ReturnType<typeof createClient> | null = null;
@@ -20,37 +19,29 @@ const mockSupabaseClient = {
 
 function getSupabaseClient() {
   if (!supabaseClient) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    
+    console.log('🔍 Raw Supabase Environment Check:', {
+      urlExists: !!supabaseUrl,
+      urlValue: supabaseUrl || 'UNDEFINED',
+      keyExists: !!supabaseAnonKey,
+      keyLength: supabaseAnonKey?.length || 0,
+    });
+    
+    // If not configured, use mock
+    if (!supabaseUrl || !supabaseAnonKey || 
+        supabaseUrl === 'build-placeholder' || 
+        supabaseAnonKey === 'build-placeholder') {
+      console.warn('⚠️ Using mock Supabase client');
+      return mockSupabaseClient;
+    }
+    
     try {
-      // Use safe getters with fallbacks
-      const supabaseUrl = getEnvSafe('NEXT_PUBLIC_SUPABASE_URL', '');
-      const supabaseAnonKey = getEnvSafe('NEXT_PUBLIC_SUPABASE_ANON_KEY', '');
-      
-      // Check if we have valid configuration
-      const hasValidConfig = hasEnv('NEXT_PUBLIC_SUPABASE_URL') && hasEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY');
-      
-      console.log('🔍 Supabase Configuration:', {
-        hasValidUrl: hasEnv('NEXT_PUBLIC_SUPABASE_URL'),
-        hasValidKey: hasEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
-        urlPreview: supabaseUrl ? `${supabaseUrl.substring(0, 30)}...` : 'NOT_SET',
-        keyLength: supabaseAnonKey?.length || 0,
-      });
-      
-      if (!hasValidConfig) {
-        console.warn('⚠️ Supabase is not configured. Using mock client for local development.');
-        return mockSupabaseClient;
-      }
-      
-      // Validate URL format
-      if (!supabaseUrl.startsWith('https://') || !supabaseUrl.includes('supabase.co')) {
-        console.error('❌ Invalid Supabase URL format');
-        return mockSupabaseClient;
-      }
-      
       supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
-      console.log('✅ Supabase client created successfully');
-      
+      console.log('✅ Real Supabase client created');
     } catch (error) {
-      console.error('❌ Failed to initialize Supabase client:', error);
+      console.error('❌ Supabase creation failed:', error);
       return mockSupabaseClient;
     }
   }
