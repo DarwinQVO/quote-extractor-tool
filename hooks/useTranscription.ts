@@ -1,9 +1,12 @@
 import { useEffect, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useStore } from '@/lib/store';
 import { Segment } from '@/lib/types';
 import { toast } from './use-toast';
+import { useTranscript } from './useTranscript';
 
 export function useTranscription(sourceId: string | null) {
+  const queryClient = useQueryClient();
   const { 
     updateSource, 
     setTranscript, 
@@ -12,9 +15,25 @@ export function useTranscription(sourceId: string | null) {
   } = useStore();
   
   const source = sources.find(s => s.id === sourceId);
+  const { data: existingTranscript } = useTranscript(sourceId);
   
   const startTranscription = useCallback(async () => {
     if (!sourceId || !source) return;
+    
+    // Check if we have a cached transcript first
+    if (existingTranscript?.segments) {
+      setTranscript(sourceId, {
+        sourceId,
+        segments: existingTranscript.segments,
+      });
+      updateSource(sourceId, { status: 'ready' });
+      
+      toast({
+        title: 'Transcript loaded',
+        description: 'Using cached transcript from previous session',
+      });
+      return;
+    }
     
     try {
       updateSource(sourceId, { status: 'transcribing' });
@@ -52,6 +71,9 @@ export function useTranscription(sourceId: string | null) {
       
       updateSource(sourceId, { status: 'ready' });
       
+      // Invalidate React Query cache to ensure fresh data
+      queryClient.invalidateQueries({ queryKey: ['transcript', sourceId] });
+      
       toast({
         title: cached ? 'Transcript loaded' : 'Transcription complete',
         description: cached 
@@ -73,7 +95,7 @@ export function useTranscription(sourceId: string | null) {
         variant: 'destructive',
       });
     }
-  }, [sourceId, source, updateSource, setTranscript, setTranscriptionProgress]);
+  }, [sourceId, source, updateSource, setTranscript, setTranscriptionProgress, queryClient, existingTranscript]);
   
   // Auto-start transcription when source is added
   useEffect(() => {

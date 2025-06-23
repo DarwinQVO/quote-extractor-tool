@@ -6,6 +6,9 @@ import { useStore } from "@/lib/store";
 import { useTranscription } from "@/hooks/useTranscription";
 import { Loader2 } from "lucide-react";
 import { extractVideoId } from "@/lib/youtube";
+import { SelectionToolbar } from "@/components/SelectionToolbar";
+import { buildCitation } from "@/lib/citations";
+import { toast } from "@/hooks/use-toast";
 
 export function ViewerPanel() {
   const playerRef = useRef<ReactPlayer>(null);
@@ -16,7 +19,8 @@ export function ViewerPanel() {
     activeSourceId, 
     sources, 
     transcripts,
-    transcriptionProgress 
+    transcriptionProgress,
+    addQuote 
   } = useStore();
   
   const activeSource = sources.find(s => s.id === activeSourceId);
@@ -58,6 +62,43 @@ export function ViewerPanel() {
       element?.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }
   }, [activeSegmentIndex]);
+  
+  const handleQuoteAdd = (selectedText: string) => {
+    if (!activeSource || !transcript) return;
+    
+    // Find which segment contains the selected text
+    const containingSegment = transcript.segments.find(segment => 
+      segment.text.includes(selectedText)
+    );
+    
+    if (!containingSegment) {
+      toast({
+        title: 'Quote not found',
+        description: 'Could not locate the selected text in the transcript',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    // Build citation
+    const citation = buildCitation(activeSource, containingSegment);
+    
+    // Add quote to store
+    addQuote({
+      sourceId: activeSource.id,
+      text: selectedText,
+      speaker: containingSegment.speaker,
+      startTime: containingSegment.start,
+      endTime: containingSegment.end,
+      citation: citation.text,
+      timestampLink: citation.link,
+    });
+    
+    toast({
+      title: 'Quote added',
+      description: 'Quote has been added to your collection',
+    });
+  };
 
   return (
     <div className="h-full flex flex-col bg-muted/10 border-l border-border">
@@ -160,6 +201,8 @@ export function ViewerPanel() {
           </p>
         )}
       </div>
+      
+      <SelectionToolbar onQuoteAdd={handleQuoteAdd} />
     </div>
   );
 }
