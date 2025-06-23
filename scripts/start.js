@@ -102,31 +102,47 @@ function checkEnvironmentVariables() {
 function startApplication() {
   log('Starting Next.js application...', 'info');
   
-  // First build the application
-  log('Building application...', 'info');
-  const build = spawn('npm', ['run', 'build'], {
+  // First initialize the database
+  log('Initializing database...', 'info');
+  const initDb = spawn('node', ['scripts/init-db.js'], {
     stdio: 'inherit',
     env: process.env,
   });
   
-  build.on('close', (code) => {
-    if (code !== 0) {
-      log(`Build failed with code ${code}`, 'error');
+  initDb.on('close', (dbCode) => {
+    if (dbCode !== 0) {
+      log(`Database initialization failed with code ${dbCode}`, 'error');
       process.exit(1);
     }
     
-    log('Build completed successfully!', 'success');
-    log('Starting server...', 'info');
+    log('Database initialized successfully!', 'success');
     
-    // Then start the server
-    const start = spawn('npm', ['run', 'start'], {
+    // Then build the application
+    log('Building application...', 'info');
+    const build = spawn('npm', ['run', 'build'], {
       stdio: 'inherit',
       env: process.env,
     });
     
-    start.on('close', (code) => {
-      log(`Server exited with code ${code}`, code === 0 ? 'info' : 'error');
-      process.exit(code);
+    build.on('close', (code) => {
+      if (code !== 0) {
+        log(`Build failed with code ${code}`, 'error');
+        process.exit(1);
+      }
+      
+      log('Build completed successfully!', 'success');
+      log('Starting server...', 'info');
+      
+      // Then start the server
+      const start = spawn('npm', ['run', 'start'], {
+        stdio: 'inherit',
+        env: process.env,
+      });
+      
+      start.on('close', (code) => {
+        log(`Server exited with code ${code}`, code === 0 ? 'info' : 'error');
+        process.exit(code);
+      });
     });
   });
 }
