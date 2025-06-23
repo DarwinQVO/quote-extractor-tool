@@ -37,13 +37,14 @@ function checkEnvironmentVariables() {
       check: (val) => val && val.startsWith('sk-') && val.length > 20,
       error: 'Must be a valid OpenAI API key starting with "sk-"',
     },
-    DATABASE_URL: {
-      check: (val) => val && val.length > 0,
-      error: 'Database URL is required',
-    },
   };
   
   const optional = {
+    DATABASE_URL: {
+      check: (val) => !val || val.length > 0,
+      error: 'Database URL should be configured',
+      default: 'file:./dev.db',
+    },
     NEXT_PUBLIC_SUPABASE_URL: {
       check: (val) => !val || val.includes('supabase.co'),
       error: 'Must be a valid Supabase URL',
@@ -77,7 +78,8 @@ function checkEnvironmentVariables() {
         log(`${key}: ✓ Configured`, 'success');
       }
     } else {
-      log(`${key}: Not configured (optional)`, 'warning');
+      const defaultMsg = config.default ? ` (will use: ${config.default})` : '';
+      log(`${key}: Not configured (optional)${defaultMsg}`, 'warning');
     }
   }
   
