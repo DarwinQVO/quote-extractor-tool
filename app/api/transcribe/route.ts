@@ -11,28 +11,36 @@ import { tmpdir } from 'os';
 
 import { setProgress, deleteProgress } from '@/lib/transcription-progress';
 import { YouTubeDLInfo } from '@/lib/youtube-types';
+import { getEnv, hasEnv } from '@/lib/env';
 
 // Initialize OpenAI client only when needed to avoid build-time errors
 let openaiClient: OpenAI | null = null;
 
 function getOpenAIClient() {
   if (!openaiClient) {
-    const apiKey = process.env.OPENAI_API_KEY;
-    
-    console.log('🔍 OpenAI API Key Check:', {
-      exists: !!apiKey,
-      length: apiKey?.length || 0,
-      startsWithSk: apiKey?.startsWith('sk-') || false,
-      env: process.env.NODE_ENV,
-    });
-    
-    if (!apiKey || apiKey === 'build-test' || apiKey === 'build-placeholder') {
-      throw new Error(`OPENAI_API_KEY environment variable is not properly configured. Current value: "${apiKey ? apiKey.substring(0, 10) + '...' : 'MISSING'}"`);
+    try {
+      const apiKey = getEnv('OPENAI_API_KEY');
+      
+      console.log('🔍 OpenAI API Key Check:', {
+        exists: hasEnv('OPENAI_API_KEY'),
+        length: apiKey?.length || 0,
+        startsWithSk: apiKey?.startsWith('sk-') || false,
+        env: process.env.NODE_ENV,
+      });
+      
+      if (!apiKey || !apiKey.startsWith('sk-')) {
+        throw new Error('Invalid OpenAI API key format');
+      }
+      
+      openaiClient = new OpenAI({
+        apiKey: apiKey,
+      });
+      
+      console.log('✅ OpenAI client initialized successfully');
+    } catch (error) {
+      console.error('❌ Failed to initialize OpenAI client:', error);
+      throw new Error(`OpenAI API key is not properly configured: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-    
-    openaiClient = new OpenAI({
-      apiKey: apiKey,
-    });
   }
   return openaiClient;
 }

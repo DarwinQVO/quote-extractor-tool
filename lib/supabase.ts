@@ -1,54 +1,58 @@
 import { createClient } from '@supabase/supabase-js'
+import { getEnvSafe, hasEnv } from '@/lib/env'
 
 // Lazy initialization to avoid build-time errors
 let supabaseClient: ReturnType<typeof createClient> | null = null;
 
+// Mock client for when Supabase is not configured
+const mockSupabaseClient = {
+  from: () => ({
+    select: () => Promise.resolve({ data: [], error: new Error('Supabase not configured') }),
+    insert: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+    update: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+    delete: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+    upsert: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+  }),
+  auth: {
+    getSession: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+  }
+} as any;
+
 function getSupabaseClient() {
   if (!supabaseClient) {
-    // First check if we're in a browser environment
-    if (typeof window === 'undefined') {
-      throw new Error('Supabase client can only be initialized in browser environment');
+    try {
+      // Use safe getters with fallbacks
+      const supabaseUrl = getEnvSafe('NEXT_PUBLIC_SUPABASE_URL', '');
+      const supabaseAnonKey = getEnvSafe('NEXT_PUBLIC_SUPABASE_ANON_KEY', '');
+      
+      // Check if we have valid configuration
+      const hasValidConfig = hasEnv('NEXT_PUBLIC_SUPABASE_URL') && hasEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY');
+      
+      console.log('🔍 Supabase Configuration:', {
+        hasValidUrl: hasEnv('NEXT_PUBLIC_SUPABASE_URL'),
+        hasValidKey: hasEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
+        urlPreview: supabaseUrl ? `${supabaseUrl.substring(0, 30)}...` : 'NOT_SET',
+        keyLength: supabaseAnonKey?.length || 0,
+      });
+      
+      if (!hasValidConfig) {
+        console.warn('⚠️ Supabase is not configured. Using mock client for local development.');
+        return mockSupabaseClient;
+      }
+      
+      // Validate URL format
+      if (!supabaseUrl.startsWith('https://') || !supabaseUrl.includes('supabase.co')) {
+        console.error('❌ Invalid Supabase URL format');
+        return mockSupabaseClient;
+      }
+      
+      supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+      console.log('✅ Supabase client created successfully');
+      
+    } catch (error) {
+      console.error('❌ Failed to initialize Supabase client:', error);
+      return mockSupabaseClient;
     }
-    
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    
-    // Debug logging to see what Railway is providing
-    console.log('🔍 Environment Variables Debug:', {
-      NODE_ENV: process.env.NODE_ENV,
-      supabaseUrlExists: !!supabaseUrl,
-      supabaseUrl: supabaseUrl ? `${supabaseUrl.substring(0, 20)}...` : 'MISSING',
-      supabaseKeyExists: !!supabaseAnonKey,
-      supabaseKeyLength: supabaseAnonKey?.length || 0,
-      allEnvKeys: Object.keys(process.env).filter(key => key.includes('SUPABASE')),
-    });
-    
-    // Special handling for build-placeholder
-    if (supabaseUrl === 'build-placeholder' || supabaseAnonKey === 'build-placeholder') {
-      console.warn('⚠️ Supabase environment variables are placeholders. Database features will be disabled.');
-      // Return a mock client that won't crash but won't work
-      return {
-        from: () => ({
-          select: () => Promise.resolve({ data: [], error: new Error('Supabase not configured') }),
-          insert: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
-          update: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
-          delete: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
-          upsert: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
-        })
-      } as any;
-    }
-    
-    // Validate URLs during runtime only
-    if (!supabaseUrl || supabaseUrl.trim() === '') {
-      throw new Error(`NEXT_PUBLIC_SUPABASE_URL environment variable is required. Current value: "${supabaseUrl}"`);
-    }
-    
-    if (!supabaseAnonKey || supabaseAnonKey.trim() === '') {
-      throw new Error(`NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable is required. Current value: "${supabaseAnonKey ? supabaseAnonKey.substring(0, 10) + '...' : 'MISSING'}"`);
-    }
-    
-    supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
-    console.log('✅ Supabase client created successfully');
   }
   
   return supabaseClient;
