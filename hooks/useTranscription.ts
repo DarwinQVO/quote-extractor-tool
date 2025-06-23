@@ -86,16 +86,33 @@ export function useTranscription(sourceId: string | null) {
       });
       
       eventSource.close();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Transcription error:', error);
+      
+      // Try to parse error details from the response
+      let errorDetails = 'Failed to transcribe video';
+      let errorSuggestion = 'Please try again later';
+      
+      if (error.response) {
+        try {
+          const errorData = await error.response.json();
+          if (errorData.details) errorDetails = errorData.details;
+          if (errorData.suggestion) errorSuggestion = errorData.suggestion;
+          
+          console.error('Server error details:', errorData);
+        } catch (e) {
+          // If we can't parse the error, use the default message
+        }
+      }
+      
       updateSource(sourceId, { 
         status: 'error',
-        error: 'Failed to transcribe video'
+        error: errorDetails
       });
       
       toast({
         title: 'Transcription failed',
-        description: 'Please try again later',
+        description: errorSuggestion,
         variant: 'destructive',
       });
     }

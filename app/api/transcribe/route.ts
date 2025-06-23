@@ -17,11 +17,21 @@ let openaiClient: OpenAI | null = null;
 
 function getOpenAIClient() {
   if (!openaiClient) {
-    if (!process.env.OPENAI_API_KEY) {
-      throw new Error('OPENAI_API_KEY environment variable is required');
+    const apiKey = process.env.OPENAI_API_KEY;
+    
+    console.log('🔍 OpenAI API Key Check:', {
+      exists: !!apiKey,
+      length: apiKey?.length || 0,
+      startsWithSk: apiKey?.startsWith('sk-') || false,
+      env: process.env.NODE_ENV,
+    });
+    
+    if (!apiKey || apiKey === 'build-test' || apiKey === 'build-placeholder') {
+      throw new Error(`OPENAI_API_KEY environment variable is not properly configured. Current value: "${apiKey ? apiKey.substring(0, 10) + '...' : 'MISSING'}"`);
     }
+    
     openaiClient = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
+      apiKey: apiKey,
     });
   }
   return openaiClient;
@@ -567,11 +577,25 @@ export async function POST(request: NextRequest) {
     console.error('Error:', error);
     deleteProgress(sourceId);
     
+    // More detailed error response
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const isApiKeyError = errorMessage.includes('OPENAI_API_KEY');
+    const isYtDlpError = errorMessage.includes('yt-dlp') || errorMessage.includes('YouTube');
+    
     return NextResponse.json(
       { 
         error: 'Transcription failed', 
-        details: error instanceof Error ? error.message : 'Unknown error',
-        suggestion: 'Check server logs for detailed error information'
+        details: errorMessage,
+        type: isApiKeyError ? 'api_key_error' : isYtDlpError ? 'download_error' : 'unknown',
+        suggestion: isApiKeyError 
+          ? 'OpenAI API key is not configured properly. Please check Railway environment variables.'
+          : isYtDlpError 
+          ? 'Failed to download YouTube video. The video might be private or region-locked.'
+          : 'Check server logs for detailed error information',
+        env: {
+          hasOpenAIKey: !!process.env.OPENAI_API_KEY,
+          nodeEnv: process.env.NODE_ENV,
+        }
       },
       { status: 500 }
     );
