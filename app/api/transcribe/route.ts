@@ -434,14 +434,22 @@ export async function POST(request: NextRequest) {
       const audioFileName = `audio${fileExtension}`;
       console.log(`Creating file object with name: ${audioFileName}`);
       
-      // Create a File object using Node.js approach
-      const audioFile = new File([audioBuffer], audioFileName, {
-        type: fileExtension === '.m4a' ? 'audio/mp4' : 
-              fileExtension === '.mp3' ? 'audio/mpeg' :
-              fileExtension === '.wav' ? 'audio/wav' :
-              fileExtension === '.ogg' ? 'audio/ogg' :
-              'audio/webm'
-      });
+      // Create a File-like object for OpenAI (Node.js compatible)
+      const mimeType = fileExtension === '.m4a' ? 'audio/mp4' : 
+                      fileExtension === '.mp3' ? 'audio/mpeg' :
+                      fileExtension === '.wav' ? 'audio/wav' :
+                      fileExtension === '.ogg' ? 'audio/ogg' :
+                      'audio/webm';
+      
+      // Create a Blob first, then add File properties
+      const audioBlob = new Blob([audioBuffer], { type: mimeType });
+      
+      // Add File-like properties
+      const audioFile = Object.assign(audioBlob, {
+        name: audioFileName,
+        lastModified: Date.now(),
+        webkitRelativePath: ''
+      }) as File;
       
       setProgress(sourceId, 65);
       
