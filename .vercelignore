@@ -1,0 +1,10 @@
+# Vercel ignore file
+*.log
+.env.local
+.env.*.local
+node_modules
+.next
+.git
+.gitignore
+README.md
+supabase-schema.sql
