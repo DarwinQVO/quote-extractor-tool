@@ -21,8 +21,6 @@ let ytDlpWrap: YTDlpWrap | null = null;
 
 async function getYTDlpWrap() {
   if (!ytDlpWrap) {
-    // Set environment variable to skip Python check for Railway deployment
-    process.env.YOUTUBE_DL_SKIP_PYTHON_CHECK = '1';
     ytDlpWrap = new YTDlpWrap();
   }
   return ytDlpWrap;
