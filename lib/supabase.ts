@@ -1,18 +1,43 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+// Lazy initialization to avoid build-time errors
+let supabaseClient: ReturnType<typeof createClient> | null = null;
 
-// Only log in development
-if (process.env.NODE_ENV === 'development') {
-  console.log('🔧 Supabase Config:', {
-    url: supabaseUrl,
-    keyLength: supabaseAnonKey?.length || 0,
-    keyExists: !!supabaseAnonKey
-  });
+function getSupabaseClient() {
+  if (!supabaseClient) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    
+    // Validate URLs during runtime only
+    if (!supabaseUrl || supabaseUrl === 'build-placeholder') {
+      throw new Error('NEXT_PUBLIC_SUPABASE_URL environment variable is required');
+    }
+    
+    if (!supabaseAnonKey || supabaseAnonKey === 'build-placeholder') {
+      throw new Error('NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable is required');
+    }
+    
+    // Only log in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔧 Supabase Config:', {
+        url: supabaseUrl,
+        keyLength: supabaseAnonKey?.length || 0,
+        keyExists: !!supabaseAnonKey
+      });
+    }
+    
+    supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+  }
+  
+  return supabaseClient;
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = new Proxy({} as ReturnType<typeof createClient>, {
+  get(target, prop) {
+    const client = getSupabaseClient();
+    return client[prop as keyof typeof client];
+  }
+});
 
 // Database types
 export interface DatabaseSource {

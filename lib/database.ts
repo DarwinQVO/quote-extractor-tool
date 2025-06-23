@@ -1,4 +1,4 @@
-import { supabase, transformSourceFromDB, transformSourceToDB, transformQuoteFromDB, transformQuoteToDB } from './supabase'
+import { supabase, transformSourceFromDB, transformSourceToDB, transformQuoteFromDB, transformQuoteToDB, DatabaseSource, DatabaseQuote } from './supabase'
 import { VideoSource, Quote, Transcript } from './types'
 
 // Sources
@@ -29,7 +29,7 @@ export async function loadSources(): Promise<VideoSource[]> {
     
     if (error) throw error
     
-    return data?.map(transformSourceFromDB) || []
+    return data?.map(item => transformSourceFromDB(item as unknown as DatabaseSource)) || []
   } catch (error) {
     console.error('Error loading sources:', error)
     return []
@@ -101,7 +101,7 @@ export async function loadQuotes(): Promise<Quote[]> {
     
     if (error) throw error
     
-    return data?.map(transformQuoteFromDB) || []
+    return data?.map(item => transformQuoteFromDB(item as unknown as DatabaseQuote)) || []
   } catch (error) {
     console.error('Error loading quotes:', error)
     return []
