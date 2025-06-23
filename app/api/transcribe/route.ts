@@ -12,9 +12,20 @@ import { tmpdir } from 'os';
 import { setProgress, deleteProgress } from '@/lib/transcription-progress';
 import { YouTubeDLInfo } from '@/lib/youtube-types';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Initialize OpenAI client only when needed to avoid build-time errors
+let openaiClient: OpenAI | null = null;
+
+function getOpenAIClient() {
+  if (!openaiClient) {
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY environment variable is required');
+    }
+    openaiClient = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+  }
+  return openaiClient;
+}
 
 // Initialize yt-dlp-wrap - will download binary if needed
 let ytDlpWrap: YTDlpWrap | null = null;
@@ -369,6 +380,7 @@ export async function POST(request: NextRequest) {
       
       try {
         // Add timeout to prevent hanging
+        const openai = getOpenAIClient();
         const transcriptionPromise = openai.audio.transcriptions.create({
           file: audioBlob,
           model: 'whisper-1',

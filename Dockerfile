@@ -23,8 +23,19 @@ COPY . .
 # Generate Prisma client
 RUN npx prisma generate
 
+# Set temporary environment variables for build (will be overridden at runtime)
+ENV OPENAI_API_KEY=build-placeholder
+ENV NEXT_PUBLIC_SUPABASE_URL=build-placeholder
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=build-placeholder
+ENV DATABASE_URL=file:./dev.db
+
 # Build the application
 RUN npm run build
+
+# Remove build-time environment variables (they will be set at runtime)
+ENV OPENAI_API_KEY=
+ENV NEXT_PUBLIC_SUPABASE_URL=
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=
 
 # Expose port
 EXPOSE 3000
