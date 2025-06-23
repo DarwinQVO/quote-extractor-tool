@@ -427,17 +427,28 @@ export async function POST(request: NextRequest) {
       console.log(`- File size: ${fileStats.size} bytes`);
       console.log(`- File modified: ${fileStats.mtime}`);
       
-      // Create a read stream for the audio file - this is the proper way for Node.js
-      const { createReadStream } = await import('fs');
-      const audioStream = createReadStream(actualAudioPath);
+      // Read the audio file as a buffer
+      const audioBuffer = await fs.readFile(actualAudioPath);
       
-      // Add the proper filename for OpenAI API
-      (audioStream as any).path = actualAudioPath;
+      // Create a proper filename with the correct extension
+      const audioFileName = `audio${fileExtension}`;
+      console.log(`Creating file object with name: ${audioFileName}`);
+      
+      // Create a File object using Node.js approach
+      const audioFile = new File([audioBuffer], audioFileName, {
+        type: fileExtension === '.m4a' ? 'audio/mp4' : 
+              fileExtension === '.mp3' ? 'audio/mpeg' :
+              fileExtension === '.wav' ? 'audio/wav' :
+              fileExtension === '.ogg' ? 'audio/ogg' :
+              'audio/webm'
+      });
       
       setProgress(sourceId, 65);
       
-      console.log('About to start OpenAI transcription with file stream...');
-      console.log('Audio stream path:', audioStream.path);
+      console.log('About to start OpenAI transcription with file object...');
+      console.log('Audio file name:', audioFile.name);
+      console.log('Audio file type:', audioFile.type);
+      console.log('Audio file size:', audioFile.size);
       
       let transcription: {
         segments?: Array<{ start: number; end: number; text: string }>;
@@ -448,7 +459,7 @@ export async function POST(request: NextRequest) {
         // Add timeout to prevent hanging
         const openai = getOpenAIClient();
         const transcriptionPromise = openai.audio.transcriptions.create({
-          file: audioStream,
+          file: audioFile,
           model: 'whisper-1',
           response_format: 'verbose_json',
           timestamp_granularities: ['segment', 'word'],
