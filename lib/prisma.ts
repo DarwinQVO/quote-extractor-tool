@@ -101,6 +101,14 @@ export async function ensureDatabaseTables() {
   }
 }
 
-export const prisma = globalForPrisma.prisma ?? new PrismaClient();
+// Function to get the initialized Prisma client
+export function getPrismaClient() {
+  if (!globalForPrisma.prisma) {
+    globalForPrisma.prisma = new PrismaClient();
+  }
+  return globalForPrisma.prisma;
+}
+
+export const prisma = getPrismaClient();
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;

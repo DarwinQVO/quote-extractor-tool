@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { OpenAI } from 'openai';
-import { prisma, ensureDatabaseTables } from '@/lib/prisma';
+import { getPrismaClient, ensureDatabaseTables } from '@/lib/prisma';
 import { cleanSegments, performBasicDiarization } from '@/lib/cleanTranscript';
 import { Segment } from '@/lib/types';
 import YTDlpWrap from 'yt-dlp-wrap';
@@ -95,6 +95,9 @@ export async function POST(request: NextRequest) {
     }
     
     console.log('🗄️ Checking for existing transcript...');
+    // Get the properly initialized Prisma client
+    const prisma = getPrismaClient();
+    
     // Check if transcript already exists and is recent
     const existingTranscript = await prisma.transcript.findUnique({
       where: { sourceId },
