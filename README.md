@@ -16,7 +16,11 @@ A powerful web application that extracts quotes from YouTube videos with perfect
 
 ## 🚀 Live Demo
 
-**[Click here to access the app](https://your-app-url.vercel.app)** *(will be updated after deployment)*
+**[Click here to access the app](https://quote-extractor-tool.vercel.app)** *(will be live after Vercel deployment)*
+
+## 📋 GitHub Repository
+
+**[View Source Code](https://github.com/DarwinQVO/quote-extractor-tool)**
 
 ## 🛠️ Tech Stack
 
