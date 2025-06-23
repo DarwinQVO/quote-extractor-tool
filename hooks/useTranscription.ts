@@ -25,6 +25,8 @@ export function useTranscription(sourceId: string | null) {
       setTranscript(sourceId, {
         sourceId,
         segments: existingTranscript.segments,
+        words: existingTranscript.words,
+        speakers: existingTranscript.speakers,
       });
       updateSource(sourceId, { status: 'ready' });
       
@@ -61,12 +63,14 @@ export function useTranscription(sourceId: string | null) {
         throw new Error('Transcription failed');
       }
       
-      const { segments, cached } = await response.json();
+      const { segments, words, speakers, cached } = await response.json();
       
       // Store transcript
       setTranscript(sourceId, {
         sourceId,
         segments: segments as Segment[],
+        words: words || [],
+        speakers: speakers || [],
       });
       
       updateSource(sourceId, { status: 'ready' });

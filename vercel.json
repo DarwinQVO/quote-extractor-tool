@@ -1,0 +1,14 @@
+{
+  "functions": {
+    "app/api/transcribe/route.ts": {
+      "maxDuration": 300
+    }
+  },
+  "env": {
+    "OPENAI_API_KEY": "@openai-api-key",
+    "ASSEMBLYAI_API_KEY": "@assemblyai-api-key", 
+    "GOOGLE_API_KEY": "@google-api-key",
+    "NEXT_PUBLIC_SUPABASE_URL": "@supabase-url",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "@supabase-anon-key"
+  }
+}

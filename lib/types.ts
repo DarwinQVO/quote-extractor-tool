@@ -6,6 +6,9 @@ export interface VideoSource {
   duration: number;
   thumbnail: string;
   addedAt: Date;
+  uploadDate?: Date;
+  description?: string;
+  viewCount?: number;
   status: 'pending' | 'fetching-metadata' | 'transcribing' | 'ready' | 'error';
   error?: string;
 }

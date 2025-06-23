@@ -4,6 +4,10 @@ export interface YouTubeMetadata {
   duration: number;
   thumbnail: string;
   videoId: string;
+  description?: string;
+  uploadDate?: string; // ISO date format (YYYY-MM-DD)
+  uploadDateRaw?: string; // Raw YouTube format (YYYYMMDD)
+  viewCount?: number;
 }
 
 export function extractVideoId(url: string): string | null {

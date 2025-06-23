@@ -2,8 +2,9 @@ import { VideoSource, Segment } from './types';
 
 export function buildCitation(
   source: VideoSource,
-  segment: Segment,
-  videoDate?: Date
+  segment: Segment | { speaker: string; start: number; end: number; text: string },
+  videoDate?: Date,
+  preciseStartTime?: number
 ): {
   text: string;
   link: string;
@@ -13,20 +14,21 @@ export function buildCitation(
   const videoIdMatch = source.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/);
   const videoId = videoIdMatch?.[1] || '';
   
-  // Build timestamp link
-  const timestampSeconds = Math.floor(segment.start);
+  // Use precise start time if provided, otherwise use segment start
+  const startTime = preciseStartTime !== undefined ? preciseStartTime : segment.start;
+  const timestampSeconds = Math.floor(startTime);
   const link = `https://youtu.be/${videoId}?t=${timestampSeconds}`;
   
-  // Format date
+  // Format date (MMM/YYYY format)
   const date = videoDate || source.addedAt;
   const month = date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
   const year = date.getFullYear();
   
-  // Build citation text
-  const citationText = `${segment.speaker}, ${month} ${year}`;
+  // Build citation text with embedded link (Speaker, MMM/YYYY format)
+  const citationText = `${segment.speaker}, ${month}/${year}`;
   
-  // Build markdown with link
-  const markdown = `> "${segment.text}"  \n— [${citationText}](${link})`;
+  // Build markdown with embedded link in citation
+  const markdown = `> "${segment.text}"  \n— ([${citationText}](${link}))`;
   
   return {
     text: citationText,

@@ -4,14 +4,18 @@ import { Segment } from '@/lib/types';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { sourceId: string } }
+  { params }: { params: Promise<{ sourceId: string }> }
 ) {
-  const { sourceId } = params;
+  const { sourceId } = await params;
   
   try {
     const transcript = await prisma.transcript.findUnique({
       where: { sourceId },
-      include: { segments: true },
+      include: { 
+        segments: true,
+        words: true,
+        speakers: true,
+      },
     });
     
     if (!transcript) {
@@ -24,9 +28,24 @@ export async function GET(
       end: s.end,
       text: s.text,
     }));
+
+    const words = transcript.words?.map(w => ({
+      text: w.text,
+      start: w.start,
+      end: w.end,
+      speaker: w.speaker,
+    })) || [];
+
+    const speakers = transcript.speakers?.map(s => ({
+      id: s.id,
+      originalName: s.originalName,
+      customName: s.customName,
+    })) || [];
     
     return NextResponse.json({ 
       segments,
+      words,
+      speakers,
       createdAt: transcript.createdAt,
       updatedAt: transcript.updatedAt,
     });

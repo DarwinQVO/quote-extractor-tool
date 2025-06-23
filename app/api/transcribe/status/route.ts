@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { getProgress } from '../route';
+import { getProgress } from '@/lib/transcription-progress';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;

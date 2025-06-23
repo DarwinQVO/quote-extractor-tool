@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { Segment } from '@/lib/types';
+import { Transcript } from '@/lib/types';
 
-async function fetchTranscript(sourceId: string): Promise<{ segments: Segment[] } | null> {
+async function fetchTranscript(sourceId: string): Promise<Transcript | null> {
   try {
     const response = await fetch(`/api/transcripts/${sourceId}`);
     if (!response.ok) {

@@ -14,7 +14,7 @@ export function getGoogleAuth(): GoogleAuth {
     let credentials;
     try {
       credentials = JSON.parse(serviceAccountJson);
-    } catch (error) {
+    } catch {
       throw new Error('Invalid GOOGLE_SERVICE_ACCOUNT_JSON format');
     }
     

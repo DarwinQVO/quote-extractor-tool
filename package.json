@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
@@ -11,10 +11,13 @@
   "dependencies": {
     "@prisma/client": "^6.10.1",
     "@radix-ui/react-dialog": "^1.1.14",
+    "@radix-ui/react-icons": "^1.3.2",
     "@radix-ui/react-label": "^2.1.7",
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-toast": "^1.2.14",
+    "@supabase/supabase-js": "^2.50.0",
     "@tanstack/react-query": "^5.81.2",
+    "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "eventsource-parser": "^3.0.2",
     "framer-motion": "^12.18.1",
@@ -28,6 +31,8 @@
     "react-player": "^2.16.0",
     "tailwind-merge": "^3.3.1",
     "tailwindcss-animate": "^1.0.7",
+    "youtube-dl-exec": "^3.0.22",
+    "yt-dlp-wrap": "^2.3.12",
     "ytdl-core": "^4.11.5",
     "zustand": "^5.0.5"
   },

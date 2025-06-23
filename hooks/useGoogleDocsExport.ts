@@ -63,17 +63,14 @@ export function useGoogleDocsExport() {
       // Show success toast with link
       toast({
         title: 'Export successful!',
-        description: `Document "${result.title}" created with ${result.quotesCount} quotes. Click to open.`,
-        action: (
-          <button
-            onClick={() => window.open(result.url, '_blank')}
-            className="px-3 py-1 bg-primary text-primary-foreground rounded-md text-sm hover:bg-primary/90 transition-colors"
-          >
-            Open Doc ↗
-          </button>
-        ),
+        description: `Document "${result.title}" created with ${result.quotesCount} quotes. Click here to open: ${result.url}`,
         duration: 10000,
       });
+      
+      // Auto-open the document
+      setTimeout(() => {
+        window.open(result.url, '_blank');
+      }, 1000);
       
       return result;
       

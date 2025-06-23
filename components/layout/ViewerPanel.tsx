@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import ReactPlayer from "react-player/youtube";
 import { useStore } from "@/lib/store";
 import { useTranscription } from "@/hooks/useTranscription";
 import { Loader2 } from "lucide-react";
-import { extractVideoId } from "@/lib/youtube";
 import { SelectionToolbar } from "@/components/SelectionToolbar";
+import { WordLevelTranscript } from "@/components/WordLevelTranscript";
 import { buildCitation } from "@/lib/citations";
 import { toast } from "@/hooks/use-toast";
 
@@ -20,7 +20,10 @@ export function ViewerPanel() {
     sources, 
     transcripts,
     transcriptionProgress,
-    addQuote 
+    addQuote,
+    updateTranscript,
+    quotes,
+    updateMultipleQuotes
   } = useStore();
   
   const activeSource = sources.find(s => s.id === activeSourceId);
@@ -29,14 +32,14 @@ export function ViewerPanel() {
   
   useTranscription(activeSourceId);
   
-  // Poll for current time
+  // Poll for current time more frequently for word-level sync
   useEffect(() => {
     if (!playing || !playerRef.current) return;
     
     const interval = setInterval(() => {
       const time = playerRef.current?.getCurrentTime() || 0;
       setCurrentTime(time);
-    }, 250);
+    }, 50); // Much more frequent for word-level sync
     
     return () => clearInterval(interval);
   }, [playing]);
@@ -44,24 +47,6 @@ export function ViewerPanel() {
   const handleSegmentClick = (startTime: number) => {
     playerRef.current?.seekTo(startTime, 'seconds');
   };
-  
-  const getActiveSegmentIndex = () => {
-    if (!transcript) return -1;
-    
-    return transcript.segments.findIndex(
-      seg => currentTime >= seg.start && currentTime < seg.end
-    );
-  };
-  
-  const activeSegmentIndex = getActiveSegmentIndex();
-  
-  // Auto-scroll to active segment
-  useEffect(() => {
-    if (activeSegmentIndex >= 0) {
-      const element = document.getElementById(`segment-${activeSegmentIndex}`);
-      element?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    }
-  }, [activeSegmentIndex]);
   
   const handleQuoteAdd = (selectedText: string) => {
     if (!activeSource || !transcript) return;
@@ -80,8 +65,13 @@ export function ViewerPanel() {
       return;
     }
     
-    // Build citation
-    const citation = buildCitation(activeSource, containingSegment);
+    // Build citation with proper upload date
+    const citation = buildCitation(
+      activeSource, 
+      containingSegment, 
+      activeSource.uploadDate, // Use video's actual upload date
+      containingSegment.start // Use segment start as precise time for fallback
+    );
     
     // Add quote to store
     addQuote({
@@ -100,9 +90,96 @@ export function ViewerPanel() {
     });
   };
 
+  const handlePreciseQuoteAdd = (selectedText: string, startTime: number, endTime: number, speaker: string) => {
+    if (!activeSource) return;
+    
+    // Create a mock segment for citation
+    const mockSegment = {
+      speaker,
+      start: startTime,
+      end: endTime,
+      text: selectedText,
+    };
+    
+    // Build citation with proper upload date and precise start time
+    const citation = buildCitation(
+      activeSource, 
+      mockSegment, 
+      activeSource.uploadDate,
+      startTime // Pass precise start time for accurate timestamp link
+    );
+    
+    // Add quote to store
+    addQuote({
+      sourceId: activeSource.id,
+      text: selectedText,
+      speaker: speaker,
+      startTime: startTime,
+      endTime: endTime,
+      citation: citation.text,
+      timestampLink: citation.link,
+    });
+    
+    toast({
+      title: 'Quote added',
+      description: 'Precise quote has been added to your collection',
+    });
+  };
+
+  const handleSpeakerUpdate = useCallback((originalSpeaker: string, newSpeaker: string) => {
+    if (!activeSourceId || !transcript || !activeSource) return;
+
+    // Update transcript segments efficiently
+    const updatedSegments = transcript.segments.map(segment => 
+      segment.speaker === originalSpeaker 
+        ? { ...segment, speaker: newSpeaker }
+        : segment
+    );
+
+    // Update transcript first
+    updateTranscript(activeSourceId, { segments: updatedSegments });
+
+    // Batch update all quotes from this source that use the old speaker name
+    const quotesToUpdate = quotes.filter(quote => 
+      quote.sourceId === activeSourceId && quote.speaker === originalSpeaker
+    );
+
+    if (quotesToUpdate.length > 0) {
+      // Prepare batch updates
+      const batchUpdates = quotesToUpdate.map(quote => {
+        // Rebuild citation with new speaker name
+        const mockSegment = {
+          speaker: newSpeaker,
+          start: quote.startTime,
+          end: quote.endTime,
+          text: quote.text,
+        };
+
+        const updatedCitation = buildCitation(
+          activeSource,
+          mockSegment,
+          activeSource.uploadDate,
+          quote.startTime
+        );
+
+        return {
+          id: quote.id,
+          updates: {
+            speaker: newSpeaker,
+            citation: updatedCitation.text,
+            timestampLink: updatedCitation.link,
+          }
+        };
+      });
+
+      // Update all quotes in a single batch operation
+      updateMultipleQuotes(batchUpdates);
+    }
+  }, [activeSourceId, transcript, activeSource, quotes, updateTranscript, updateMultipleQuotes]);
+
   return (
     <div className="h-full flex flex-col bg-muted/10 border-l border-border">
-      <div className="relative aspect-video bg-black">
+      <div className="relative aspect-video bg-black flex-shrink-0 max-h-[40vh]">
         {activeSource ? (
           <ReactPlayer
             ref={playerRef}
@@ -114,11 +191,9 @@ export function ViewerPanel() {
             onPause={() => setPlaying(false)}
             controls
             config={{
-              youtube: {
-                playerVars: {
-                  modestbranding: 1,
-                  rel: 0,
-                }
+              playerVars: {
+                modestbranding: 1,
+                rel: 0,
               }
             }}
           />
@@ -129,7 +204,7 @@ export function ViewerPanel() {
         )}
       </div>
       
-      <div className="px-6 py-4 border-b border-border">
+      <div className="px-6 py-4 border-b border-border flex-shrink-0">
         <div className="space-y-2">
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Status</span>
@@ -152,7 +227,7 @@ export function ViewerPanel() {
         </div>
       </div>
       
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 p-6 min-h-0 overflow-hidden">
         {!activeSource ? (
           <p className="text-sm text-muted-foreground text-center py-8">
             Select a video from the sources panel to view its transcript
@@ -165,36 +240,16 @@ export function ViewerPanel() {
             </p>
           </div>
         ) : transcript ? (
-          <div className="space-y-4">
-            {transcript.segments.map((segment, index) => {
-              const isActive = index === activeSegmentIndex;
-              
-              return (
-                <div
-                  key={index}
-                  className={`p-4 rounded-lg cursor-pointer transition-all duration-200 ${
-                    isActive 
-                      ? 'bg-yellow-400/20 ring-2 ring-yellow-400/50' 
-                      : 'hover:bg-muted/50'
-                  }`}
-                  onClick={() => handleSegmentClick(segment.start)}
-                  id={`segment-${index}`}
-                >
-                  <div className="flex items-start gap-3">
-                    <span className="text-xs font-medium text-muted-foreground min-w-[80px]">
-                      {segment.speaker}
-                    </span>
-                    <div className="flex-1">
-                      <p className="text-sm leading-relaxed">{segment.text}</p>
-                      <span className="text-xs text-muted-foreground mt-1">
-                        {formatTime(segment.start)} - {formatTime(segment.end)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <>
+            <WordLevelTranscript
+              segments={transcript.segments}
+              words={transcript.words}
+              currentTime={currentTime}
+              onWordClick={handleSegmentClick}
+              onTextSelection={handlePreciseQuoteAdd}
+              onSpeakerUpdate={handleSpeakerUpdate}
+            />
+          </>
         ) : (
           <p className="text-sm text-muted-foreground text-center py-8">
             Transcript will appear here once the video is processed
@@ -207,8 +262,3 @@ export function ViewerPanel() {
   );
 }
 
-function formatTime(seconds: number): string {
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
-}

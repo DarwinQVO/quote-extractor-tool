@@ -1,4 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
+import YTDlpWrap from 'yt-dlp-wrap';
+import { YouTubeDLInfo } from '@/lib/youtube-types';
+
+// Initialize yt-dlp-wrap
+let ytDlpWrap: YTDlpWrap | null = null;
+
+async function getYTDlpWrap() {
+  if (!ytDlpWrap) {
+    ytDlpWrap = new YTDlpWrap();
+  }
+  return ytDlpWrap;
+}
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -9,36 +21,54 @@ export async function GET(request: NextRequest) {
   }
   
   try {
-    // Using noembed as a simple way to get YouTube metadata without API key
-    const noembedResponse = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`);
+    const url = `https://www.youtube.com/watch?v=${videoId}`;
     
-    if (!noembedResponse.ok) {
-      throw new Error('Failed to fetch from noembed');
+    // Get real metadata using yt-dlp
+    const ytdl = await getYTDlpWrap();
+    const info = await ytdl.execPromise([
+      url,
+      '--dump-json',
+      '--no-warnings'
+    ]).then(JSON.parse);
+    
+    const videoInfo = typeof info === 'object' ? info as YouTubeDLInfo : null;
+    
+    // Parse YouTube date format (YYYYMMDD) to ISO date
+    let parsedUploadDate = null;
+    if (videoInfo?.upload_date) {
+      const dateStr = videoInfo.upload_date;
+      if (typeof dateStr === 'string' && dateStr.length === 8) {
+        const year = dateStr.substring(0, 4);
+        const month = dateStr.substring(4, 6);
+        const day = dateStr.substring(6, 8);
+        parsedUploadDate = `${year}-${month}-${day}`;
+      }
     }
-    
-    const noembedData = await noembedResponse.json();
-    
-    if (noembedData.error) {
-      throw new Error(noembedData.error);
-    }
-    
-    // Extract duration from thumbnail URL pattern or default to 0
-    // YouTube thumbnails sometimes contain duration info, but we'll need proper API for accurate duration
-    const durationMatch = noembedData.duration?.match(/(\d+)/);
-    const duration = durationMatch ? parseInt(durationMatch[1]) : 0;
     
     return NextResponse.json({
-      title: noembedData.title || 'Unknown Title',
-      channel: noembedData.author_name || 'Unknown Channel',
-      duration: duration,
-      thumbnail: noembedData.thumbnail_url || `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
+      title: videoInfo?.title || 'Unknown Title',
+      channel: videoInfo?.uploader || videoInfo?.channel || 'Unknown Channel',
+      duration: videoInfo?.duration || 0,
+      thumbnail: videoInfo?.thumbnail || `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
       videoId: videoId,
+      description: videoInfo?.description ? videoInfo.description.substring(0, 200) + '...' : '',
+      uploadDate: parsedUploadDate,
+      uploadDateRaw: videoInfo?.upload_date || '',
+      viewCount: videoInfo?.view_count || 0,
     });
   } catch (error) {
     console.error('Error fetching YouTube metadata:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch video metadata' },
-      { status: 500 }
-    );
+    
+    // Fallback to basic info if youtube-dl fails
+    return NextResponse.json({
+      title: `Video ${videoId}`,
+      channel: 'Unknown Channel',
+      duration: 0,
+      thumbnail: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
+      videoId: videoId,
+      description: '',
+      uploadDate: '',
+      viewCount: 0,
+    });
   }
 }

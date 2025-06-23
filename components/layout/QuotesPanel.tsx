@@ -1,11 +1,10 @@
 "use client";
 
-import { Copy, FileText, Trash2, ExternalLink, Clock, Upload, CheckCircle } from "lucide-react";
+import { Copy, FileText, Trash2, Upload, CheckCircle } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
-import { buildCitation, formatTimeForDisplay } from "@/lib/citations";
 import { useGoogleDocsExport } from "@/hooks/useGoogleDocsExport";
 
 export function QuotesPanel() {
@@ -24,49 +23,93 @@ export function QuotesPanel() {
       return;
     }
     
-    const markdownText = quotes
+    const plainTextQuotes = quotes
       .map(quote => {
         const source = sources.find(s => s.id === quote.sourceId);
         if (!source) return '';
         
-        return `> "${quote.text}"  \n— [${quote.citation}](${quote.timestampLink})`;
+        return `"${quote.text}"\n— (${quote.citation})`;
       })
       .filter(Boolean)
       .join('\n\n');
     
+    const htmlQuotes = quotes
+      .map(quote => {
+        const source = sources.find(s => s.id === quote.sourceId);
+        if (!source) return '';
+        
+        return `"${quote.text}"<br>— (<a href="${quote.timestampLink}">${quote.citation}</a>)`;
+      })
+      .filter(Boolean)
+      .join('<br><br>');
+    
     try {
-      await navigator.clipboard.writeText(markdownText);
+      // Use modern clipboard API to write multiple formats
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/plain': new Blob([plainTextQuotes], { type: 'text/plain' }),
+          'text/html': new Blob([htmlQuotes], { type: 'text/html' }),
+        }),
+      ]);
+      
       toast({
         title: "Copied to clipboard",
-        description: `${quotes.length} quote${quotes.length > 1 ? 's' : ''} copied as Markdown`,
+        description: `${quotes.length} quote${quotes.length > 1 ? 's' : ''} copied with clickable links`,
       });
     } catch {
-      toast({
-        title: "Copy failed",
-        description: "Unable to copy to clipboard",
-        variant: "destructive",
-      });
+      // Fallback to plain text
+      try {
+        await navigator.clipboard.writeText(plainTextQuotes);
+        toast({
+          title: "Copied to clipboard",
+          description: `${quotes.length} quote${quotes.length > 1 ? 's' : ''} copied as plain text`,
+        });
+      } catch {
+        toast({
+          title: "Copy failed",
+          description: "Unable to copy to clipboard",
+          variant: "destructive",
+        });
+      }
     }
   };
   
-  const handleCopyQuote = async (quote: any) => {
+  const handleCopyQuote = async (quote: { sourceId: string; text: string; citation: string; timestampLink: string }) => {
     const source = sources.find(s => s.id === quote.sourceId);
     if (!source) return;
     
-    const markdown = `> "${quote.text}"  \n— [${quote.citation}](${quote.timestampLink})`;
+    // Create rich text format for Google Docs
+    const plainText = `"${quote.text}"\n— (${quote.citation})`;
+    const htmlFormat = `"${quote.text}"<br>— (<a href="${quote.timestampLink}">${quote.citation}</a>)`;
     
     try {
-      await navigator.clipboard.writeText(markdown);
+      // Use modern clipboard API to write multiple formats
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/plain': new Blob([plainText], { type: 'text/plain' }),
+          'text/html': new Blob([htmlFormat], { type: 'text/html' }),
+        }),
+      ]);
+      
       toast({
         title: "Quote copied",
-        description: "Quote copied as Markdown",
+        description: "Quote copied with clickable link for Google Docs",
       });
     } catch {
-      toast({
-        title: "Copy failed",
-        description: "Unable to copy to clipboard",
-        variant: "destructive",
-      });
+      // Fallback to plain text
+      try {
+        await navigator.clipboard.writeText(plainText);
+        toast({
+          title: "Quote copied",
+          description: "Quote copied as plain text",
+        });
+      } catch {
+        toast({
+          title: "Copy failed",
+          description: "Unable to copy to clipboard",
+          variant: "destructive",
+        });
+      }
     }
   };
   
@@ -165,38 +208,38 @@ export function QuotesPanel() {
             No quotes collected yet. Select text from the transcript to add quotes.
           </p>
         ) : (
-          quotes.map((quote) => {
-            const source = sources.find(s => s.id === quote.sourceId);
-            
+          quotes.map((quote) => {            
             return (
               <Card key={quote.id} className={`group ${quote.exported ? 'ring-2 ring-green-500/20 bg-green-50/50' : ''}`}>
                 <CardContent className="p-4">
                   <div className="space-y-3">
                     <blockquote className="text-sm leading-relaxed italic border-l-4 border-primary pl-4">
-                      "{quote.text}"
+                      &ldquo;{quote.text}&rdquo;
                     </blockquote>
                     
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <div className="flex items-center gap-2">
-                        <span>{quote.speaker}</span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {formatTimeForDisplay(quote.startTime)}
-                        </span>
-                        {quote.exported && (
-                          <span className="flex items-center gap-1 text-green-600">
-                            <CheckCircle className="w-3 h-3" />
-                            Exported
-                          </span>
-                        )}
+                    {/* Citation as clickable link */}
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs text-muted-foreground">
+                        — (
+                        <a 
+                          href={quote.timestampLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:text-primary hover:underline transition-colors"
+                        >
+                          {quote.citation}
+                        </a>
+                        )
                       </div>
+                      
+                      {/* Action buttons on hover */}
                       <div className="flex items-center gap-1">
                         <Button
                           variant="ghost"
                           size="sm"
                           className="h-6 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
                           onClick={() => handleCopyQuote(quote)}
+                          title="Copy quote"
                         >
                           <Copy className="w-3 h-3" />
                         </Button>
@@ -204,26 +247,18 @@ export function QuotesPanel() {
                           variant="ghost"
                           size="sm"
                           className="h-6 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={() => window.open(quote.timestampLink, '_blank')}
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
                           onClick={() => removeQuote(quote.id)}
+                          title="Delete quote"
                         >
                           <Trash2 className="w-3 h-3" />
                         </Button>
+                        {quote.exported && (
+                          <div title="Exported to Google Docs">
+                            <CheckCircle className="w-4 h-4 text-green-600" />
+                          </div>
+                        )}
                       </div>
                     </div>
-                    
-                    {source && (
-                      <div className="text-xs text-muted-foreground truncate">
-                        From: {source.title}
-                      </div>
-                    )}
                   </div>
                 </CardContent>
               </Card>

@@ -1,10 +1,10 @@
 "use client";
 
-import { Plus, Youtube, X, Loader2 } from "lucide-react";
+import { Plus, Youtube, X, Loader2, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { fetchYouTubeMetadata } from "@/lib/youtube";
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,13 @@ export function SourcesPanel() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [url, setUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  
+  const clearAllData = () => {
+    if (confirm('¿Estás seguro? Esto borrará todos los videos, transcripts y quotes guardados.')) {
+      localStorage.clear();
+      window.location.reload();
+    }
+  };
   
   const handleAddSource = async () => {
     if (!url.trim()) {
@@ -38,6 +45,9 @@ export function SourcesPanel() {
         channel: metadata.channel,
         duration: metadata.duration,
         thumbnail: metadata.thumbnail,
+        description: metadata.description,
+        uploadDate: metadata.uploadDate ? new Date(metadata.uploadDate) : undefined,
+        viewCount: metadata.viewCount,
         status: 'pending',
       });
       
@@ -48,7 +58,7 @@ export function SourcesPanel() {
         title: "Success",
         description: "Video added successfully",
       });
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to fetch video metadata",
@@ -70,12 +80,24 @@ export function SourcesPanel() {
         <h2 className="text-lg font-semibold mb-4">Sources</h2>
         <Button 
           onClick={() => setIsDialogOpen(true)}
-          className="w-full gap-2"
+          className="w-full gap-2 mb-2"
           size="lg"
         >
           <Plus className="w-4 h-4" />
           Add YouTube URL
         </Button>
+        
+        {sources.length > 0 && (
+          <Button 
+            onClick={clearAllData}
+            variant="outline" 
+            className="w-full gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+            size="sm"
+          >
+            <Trash2 className="w-4 h-4" />
+            Clear All Data
+          </Button>
+        )}
       </div>
       
       <div className="flex-1 overflow-y-auto p-6 space-y-3">
@@ -134,6 +156,9 @@ export function SourcesPanel() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add YouTube Video</DialogTitle>
+            <DialogDescription>
+              Paste a YouTube URL to extract quotes from the video transcript
+            </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 pt-4">
