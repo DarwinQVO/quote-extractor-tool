@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import type { Speaker } from '@prisma/client';
 
 // Get speakers for a transcript by source ID
 export async function GET(
@@ -20,7 +19,7 @@ export async function GET(
       return NextResponse.json({ speakers: [] });
     }
     
-    const speakers = transcript.speakers.map((speaker: Speaker) => ({
+    const speakers = transcript.speakers.map((speaker: { id: string; originalName: string; customName: string }) => ({
       id: speaker.id,
       originalName: speaker.originalName,
       customName: speaker.customName,
