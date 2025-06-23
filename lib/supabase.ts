@@ -5,16 +5,26 @@ let supabaseClient: ReturnType<typeof createClient> | null = null;
 
 function getSupabaseClient() {
   if (!supabaseClient) {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    
+    // Debug logging to see what Railway is providing
+    console.log('🔍 Environment Variables Debug:', {
+      NODE_ENV: process.env.NODE_ENV,
+      supabaseUrlExists: !!supabaseUrl,
+      supabaseUrl: supabaseUrl ? `${supabaseUrl.substring(0, 20)}...` : 'MISSING',
+      supabaseKeyExists: !!supabaseAnonKey,
+      supabaseKeyLength: supabaseAnonKey?.length || 0,
+      allEnvKeys: Object.keys(process.env).filter(key => key.includes('SUPABASE')),
+    });
     
     // Validate URLs during runtime only
-    if (!supabaseUrl || supabaseUrl === 'build-placeholder') {
-      throw new Error('NEXT_PUBLIC_SUPABASE_URL environment variable is required');
+    if (!supabaseUrl || supabaseUrl === 'build-placeholder' || supabaseUrl.trim() === '') {
+      throw new Error(`NEXT_PUBLIC_SUPABASE_URL environment variable is required. Current value: "${supabaseUrl}"`);
     }
     
-    if (!supabaseAnonKey || supabaseAnonKey === 'build-placeholder') {
-      throw new Error('NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable is required');
+    if (!supabaseAnonKey || supabaseAnonKey === 'build-placeholder' || supabaseAnonKey.trim() === '') {
+      throw new Error(`NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable is required. Current value: "${supabaseAnonKey ? supabaseAnonKey.substring(0, 10) + '...' : 'MISSING'}"`);
     }
     
     // Only log in development
@@ -27,6 +37,7 @@ function getSupabaseClient() {
     }
     
     supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+    console.log('✅ Supabase client created successfully');
   }
   
   return supabaseClient;

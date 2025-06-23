@@ -91,18 +91,27 @@ This app is optimized for Railway deployment to handle long video processing wit
 
 ### Environment Variables Required:
 ```
-OPENAI_API_KEY=your_openai_api_key
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+OPENAI_API_KEY=sk-proj-your_openai_api_key_here
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 YOUTUBE_DL_SKIP_PYTHON_CHECK=1
 NODE_ENV=production
 ```
 
-### Deployment Steps:
-1. Connect your GitHub repository to Railway
-2. Add the environment variables above
-3. Railway will automatically detect the configuration files
-4. Deploy and enjoy unlimited video processing time!
+### Railway Deployment Steps:
+1. **Connect Repository**: Link your GitHub repository to Railway
+2. **Add Environment Variables**: 
+   - Go to Railway project settings
+   - Add all variables above (one by one)
+   - Make sure NEXT_PUBLIC variables are exactly as shown
+3. **Deploy**: Railway will automatically build and deploy
+4. **Debug**: Visit `/debug-env` on your deployed app to verify environment variables
+5. **Test**: Upload a YouTube video and create quotes!
+
+### Troubleshooting:
+- If you see "NEXT_PUBLIC_SUPABASE_URL is missing", verify the environment variables are added correctly in Railway
+- Visit `/debug-env` endpoint to see which variables Railway is detecting
+- Redeploy after adding environment variables to ensure they take effect
 
 ---
 
