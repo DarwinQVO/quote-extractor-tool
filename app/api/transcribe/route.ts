@@ -40,12 +40,19 @@ function getOpenAIClient() {
   return openaiClient;
 }
 
-// Initialize yt-dlp-wrap - will download binary if needed
+// Initialize yt-dlp-wrap - use system binary if available
 let ytDlpWrap: YTDlpWrap | null = null;
 
 async function getYTDlpWrap() {
   if (!ytDlpWrap) {
-    ytDlpWrap = new YTDlpWrap();
+    // Try to use system yt-dlp first
+    try {
+      ytDlpWrap = new YTDlpWrap('yt-dlp'); // Use system binary
+      console.log('✅ Using system yt-dlp binary');
+    } catch (error) {
+      console.log('⚠️ System yt-dlp not found, using default');
+      ytDlpWrap = new YTDlpWrap(); // Fall back to download
+    }
   }
   return ytDlpWrap;
 }
