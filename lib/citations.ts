@@ -19,16 +19,16 @@ export function buildCitation(
   const timestampSeconds = Math.floor(startTime);
   const link = `https://youtu.be/${videoId}?t=${timestampSeconds}`;
   
-  // Format date (MMM/YYYY format)
+  // Format date (Month YYYY format)
   const date = videoDate || source.addedAt;
-  const month = date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+  const month = date.toLocaleDateString('en-US', { month: 'long' });
   const year = date.getFullYear();
   
-  // Build citation text with embedded link (Speaker, MMM/YYYY format)
-  const citationText = `${segment.speaker}, ${month}/${year}`;
+  // Build citation text with embedded link (Speaker (Month YYYY) format)
+  const citationText = `${segment.speaker} (${month} ${year})`;
   
   // Build markdown with embedded link in citation
-  const markdown = `> "${segment.text}"  \n— ([${citationText}](${link}))`;
+  const markdown = `> "${segment.text}"  \n— [${citationText}](${link})`;
   
   return {
     text: citationText,
