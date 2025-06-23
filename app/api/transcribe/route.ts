@@ -45,17 +45,22 @@ let ytDlpWrap: YTDlpWrap | null = null;
 
 async function getYTDlpWrap() {
   if (!ytDlpWrap) {
-    console.log('🔧 Initializing yt-dlp-wrap with auto-download...');
+    console.log('🔧 Initializing yt-dlp-wrap...');
     
     try {
-      // Use auto-download approach - this is usually more reliable in containers
-      ytDlpWrap = new YTDlpWrap();
-      
-      // Force download the binary if needed
-      console.log('📥 Ensuring yt-dlp binary is available...');
-      await ytDlpWrap.getBinaryVersion();
-      
-      console.log('✅ yt-dlp binary is ready');
+      // Try system yt-dlp first (installed via Nixpkgs)
+      try {
+        console.log('🔍 Trying system yt-dlp binary...');
+        ytDlpWrap = new YTDlpWrap('yt-dlp');
+        await ytDlpWrap.execPromise(['--version']);
+        console.log('✅ Using system yt-dlp binary');
+      } catch (systemError) {
+        console.log('⚠️ System yt-dlp failed, using auto-download...');
+        // Fallback to auto-download
+        ytDlpWrap = new YTDlpWrap();
+        await ytDlpWrap.getBinaryVersion();
+        console.log('✅ Auto-downloaded yt-dlp binary ready');
+      }
     } catch (error) {
       console.error('❌ Failed to initialize yt-dlp-wrap:', error);
       throw error;
