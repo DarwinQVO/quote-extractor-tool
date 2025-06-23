@@ -20,6 +20,7 @@ export interface Quote {
   citation: string;
   timestampLink: string;
   createdAt: Date;
+  exported?: boolean;
 }
 
 export interface TranscriptWord {

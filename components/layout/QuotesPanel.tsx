@@ -1,14 +1,18 @@
 "use client";
 
-import { Copy, FileText, Trash2, ExternalLink, Clock } from "lucide-react";
+import { Copy, FileText, Trash2, ExternalLink, Clock, Upload, CheckCircle } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { buildCitation, formatTimeForDisplay } from "@/lib/citations";
+import { useGoogleDocsExport } from "@/hooks/useGoogleDocsExport";
 
 export function QuotesPanel() {
-  const { quotes, removeQuote, sources } = useStore();
+  const { quotes, removeQuote, sources, activeSourceId } = useStore();
+  const { exportToGoogleDocs, isExporting } = useGoogleDocsExport();
+  
+  const activeSource = sources.find(s => s.id === activeSourceId);
   
   const handleCopyAll = async () => {
     if (quotes.length === 0) {
@@ -76,6 +80,31 @@ export function QuotesPanel() {
       description: "Your quote collection has been cleared",
     });
   };
+  
+  const handleGoogleDocsExport = async () => {
+    if (!activeSource) {
+      toast({
+        title: "No active source",
+        description: "Please select a video source first",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Filter quotes for active source
+    const sourceQuotes = quotes.filter(q => q.sourceId === activeSourceId);
+    
+    if (sourceQuotes.length === 0) {
+      toast({
+        title: "No quotes from this source",
+        description: "Add some quotes from the current video first",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    await exportToGoogleDocs(sourceQuotes, activeSource);
+  };
 
   return (
     <div className="h-full flex flex-col bg-background">
@@ -84,6 +113,11 @@ export function QuotesPanel() {
           <h2 className="text-lg font-semibold">Quotes</h2>
           <p className="text-sm text-muted-foreground">
             {quotes.length} quote{quotes.length !== 1 ? 's' : ''} collected
+            {activeSource && quotes.filter(q => q.sourceId === activeSourceId).length > 0 && (
+              <span className="ml-2">
+                ({quotes.filter(q => q.sourceId === activeSourceId).length} from current video)
+              </span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -99,10 +133,19 @@ export function QuotesPanel() {
           <Button 
             variant="ghost"
             size="sm"
-            disabled={quotes.length === 0}
+            onClick={handleGoogleDocsExport}
+            disabled={
+              quotes.filter(q => q.sourceId === activeSourceId).length === 0 || 
+              isExporting ||
+              !activeSource
+            }
             title="Export to Google Docs"
           >
-            <FileText className="w-4 h-4" />
+            {isExporting ? (
+              <Upload className="w-4 h-4 animate-pulse" />
+            ) : (
+              <FileText className="w-4 h-4" />
+            )}
           </Button>
           <Button 
             variant="ghost"
@@ -126,7 +169,7 @@ export function QuotesPanel() {
             const source = sources.find(s => s.id === quote.sourceId);
             
             return (
-              <Card key={quote.id} className="group">
+              <Card key={quote.id} className={`group ${quote.exported ? 'ring-2 ring-green-500/20 bg-green-50/50' : ''}`}>
                 <CardContent className="p-4">
                   <div className="space-y-3">
                     <blockquote className="text-sm leading-relaxed italic border-l-4 border-primary pl-4">
@@ -141,6 +184,12 @@ export function QuotesPanel() {
                           <Clock className="w-3 h-3" />
                           {formatTimeForDisplay(quote.startTime)}
                         </span>
+                        {quote.exported && (
+                          <span className="flex items-center gap-1 text-green-600">
+                            <CheckCircle className="w-3 h-3" />
+                            Exported
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-1">
                         <Button

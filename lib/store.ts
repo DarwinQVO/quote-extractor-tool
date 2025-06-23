@@ -15,6 +15,7 @@ interface AppState {
   
   addQuote: (quote: Omit<Quote, 'id' | 'createdAt'>) => void;
   removeQuote: (id: string) => void;
+  markQuotesAsExported: (quoteIds: string[]) => void;
   
   setTranscript: (sourceId: string, transcript: Transcript) => void;
   setTranscriptionProgress: (sourceId: string, progress: number) => void;
@@ -77,6 +78,13 @@ export const useStore = create<AppState>((set) => ({
   removeQuote: (id) =>
     set((state) => ({
       quotes: state.quotes.filter((quote) => quote.id !== id),
+    })),
+    
+  markQuotesAsExported: (quoteIds) =>
+    set((state) => ({
+      quotes: state.quotes.map((quote) =>
+        quoteIds.includes(quote.id) ? { ...quote, exported: true } : quote
+      ),
     })),
     
   setTranscript: (sourceId, transcript) =>
