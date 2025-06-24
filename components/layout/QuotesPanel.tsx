@@ -184,6 +184,7 @@ export function QuotesPanel() {
               )}
             </p>
           </div>
+          <div className="flex items-center gap-2">
             <Button 
               variant="ghost"
               size="sm"
