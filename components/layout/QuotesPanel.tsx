@@ -220,7 +220,6 @@ export function QuotesPanel() {
                     {/* Citation as clickable link */}
                     <div className="flex items-center justify-between">
                       <div className="text-xs text-muted-foreground">
-                        — (
                         <a 
                           href={quote.timestampLink}
                           target="_blank"
@@ -229,7 +228,6 @@ export function QuotesPanel() {
                         >
                           {quote.citation}
                         </a>
-                        )
                       </div>
                       
                       {/* Action buttons on hover */}
