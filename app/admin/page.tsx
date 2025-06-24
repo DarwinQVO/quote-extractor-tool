@@ -26,6 +26,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchTranscripts = async () => {
     try {
@@ -71,6 +72,47 @@ export default function AdminPage() {
       alert(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setDeleting(null);
+    }
+  };
+
+  const handleBulkCleanup = async (action: string) => {
+    let confirmMessage = '';
+    
+    switch (action) {
+      case 'delete-all-failed':
+        confirmMessage = '⚠️ ¿Eliminar todos los transcripts fallidos?';
+        break;
+      case 'delete-all-test':
+        confirmMessage = '⚠️ ¿Eliminar todos los transcripts de prueba?';
+        break;
+      default:
+        return;
+    }
+    
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+    
+    try {
+      setIsDeleting(true);
+      const response = await fetch('/api/admin/bulk-cleanup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        alert(`✅ ${result.message}`);
+        fetchTranscripts();
+      } else {
+        alert('❌ Error en limpieza masiva');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('❌ Error en limpieza masiva');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -145,7 +187,7 @@ export default function AdminPage() {
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold">Database Admin</h1>
-          <div className="space-x-4">
+          <div className="space-x-2">
             <button 
               onClick={fetchTranscripts}
               className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
@@ -153,8 +195,23 @@ export default function AdminPage() {
               Refrescar
             </button>
             <button 
+              onClick={() => handleBulkCleanup('delete-all-failed')}
+              className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700"
+              disabled={deleting !== null || isDeleting}
+            >
+              Limpiar Fallidos
+            </button>
+            <button 
+              onClick={() => handleBulkCleanup('delete-all-test')}
+              className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700"
+              disabled={deleting !== null || isDeleting}
+            >
+              Limpiar Pruebas
+            </button>
+            <button 
               onClick={cleanupAll}
               className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+              disabled={deleting !== null || isDeleting}
             >
               Borrar Todo
             </button>
