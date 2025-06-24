@@ -7,12 +7,12 @@ cmds = [
 ]
 
 [phases.build]
-# Skip build phase - our script will handle it with proper env vars
-cmds = ["echo 'Build will be handled by production script'"]
+# Build the application normally
+cmds = ["npm run build"]
 
 [start]
-# Use our production startup script
-cmd = "npm run start:production"
+# Use standard Next.js start command
+cmd = "npm run start"
 
 [variables]
 YOUTUBE_DL_SKIP_PYTHON_CHECK = "1"
