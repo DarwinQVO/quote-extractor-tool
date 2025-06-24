@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { Clock, Edit3, Check, X } from "lucide-react";
 import { Segment } from "@/lib/types";
 import { Input } from "@/components/ui/input";
@@ -40,6 +40,9 @@ export function WordLevelTranscript({
   const [hasMoved, setHasMoved] = useState(false);
   const [isCreatingQuote, setIsCreatingQuote] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [isAutoScrollEnabled, setIsAutoScrollEnabled] = useState(true);
+  const [userScrollTimeout, setUserScrollTimeout] = useState<NodeJS.Timeout | null>(null);
+  const prevActiveIndex = useRef(-1);
 
   // If we don't have word-level data, fallback to segment-based display
   const hasWordLevelData = words.length > 0;
@@ -227,19 +230,33 @@ export function WordLevelTranscript({
     }
   };
 
-  // Auto-scroll disabled to prevent scroll conflicts
-  // TODO: Re-implement auto-scroll in a way that doesn't interfere with manual scrolling
-  
-  /*
-  // Ref to track previous active index to prevent unnecessary scrolling
-  const prevActiveIndex = useRef(-1);
-  
-  // Auto-scroll only when active index actually changes
+  // Handle user scroll to pause auto-scroll temporarily
+  const handleScroll = () => {
+    // Disable auto-scroll when user manually scrolls
+    setIsAutoScrollEnabled(false);
+    
+    // Clear existing timeout
+    if (userScrollTimeout) {
+      clearTimeout(userScrollTimeout);
+    }
+    
+    // Re-enable auto-scroll after 3 seconds of no scrolling
+    const timeout = setTimeout(() => {
+      setIsAutoScrollEnabled(true);
+    }, 3000);
+    
+    setUserScrollTimeout(timeout);
+  };
+
+  // Auto-scroll implementation that respects user interaction
   useEffect(() => {
     const activeIndex = hasWordLevelData ? activeWordIndex : activeSegmentIndex;
     
-    // Only scroll if the active index actually changed
-    if (activeIndex >= 0 && activeIndex !== prevActiveIndex.current) {
+    // Only scroll if:
+    // 1. Auto-scroll is enabled
+    // 2. Active index actually changed
+    // 3. We have a valid active index
+    if (isAutoScrollEnabled && activeIndex >= 0 && activeIndex !== prevActiveIndex.current) {
       prevActiveIndex.current = activeIndex;
       
       // Use a small delay to ensure DOM is stable
@@ -250,26 +267,34 @@ export function WordLevelTranscript({
           const containerRect = container.getBoundingClientRect();
           const elementRect = element.getBoundingClientRect();
           
-          // Only scroll if element is out of view within the transcript container
+          // Check if element is out of view within the transcript container
           const isOutOfView = 
-            elementRect.top < containerRect.top || 
-            elementRect.bottom > containerRect.bottom;
+            elementRect.top < containerRect.top + 50 || 
+            elementRect.bottom > containerRect.bottom - 50;
           
           if (isOutOfView) {
             // Use smooth scrolling within the container only
             element.scrollIntoView({ 
-              block: 'nearest', 
+              block: 'center', 
               behavior: 'smooth',
               inline: 'nearest'
             });
           }
         }
-      }, 50);
+      }, 100);
       
       return () => clearTimeout(timeoutId);
     }
-  }, [activeWordIndex, activeSegmentIndex, hasWordLevelData]);
-  */
+  }, [activeWordIndex, activeSegmentIndex, hasWordLevelData, isAutoScrollEnabled]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (userScrollTimeout) {
+        clearTimeout(userScrollTimeout);
+      }
+    };
+  }, [userScrollTimeout]);
 
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -328,6 +353,7 @@ export function WordLevelTranscript({
           setHasMoved(false);
           setMouseDownTime(0);
         }}
+        onScroll={handleScroll}
         style={{ 
           scrollBehavior: 'smooth',
           contain: 'layout style paint',
@@ -431,6 +457,7 @@ export function WordLevelTranscript({
       <div 
         ref={containerRef} 
         className="space-y-3 pb-8 h-full overflow-y-auto"
+        onScroll={handleScroll}
         style={{ 
           scrollBehavior: 'smooth',
           contain: 'layout style paint',
