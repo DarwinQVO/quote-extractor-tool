@@ -25,6 +25,8 @@ export function ViewerPanel() {
     autoEnhance: false,
   });
   const [showPrompt, setShowPrompt] = useState(false);
+  const [isEnhancing, setIsEnhancing] = useState(false);
+  const [enhancementProgress, setEnhancementProgress] = useState(0);
   const [customPrompt, setCustomPrompt] = useState(`You are an expert transcript enhancer. Your job is to improve transcript text quality while maintaining the exact meaning and speaker intent.
 
 APPLY THESE RULES EXACTLY:
@@ -50,6 +52,94 @@ Return only the enhanced text, no explanations.`);
   useEffect(() => {
     localStorage.setItem('transcript-enhancement-prompt', customPrompt);
   }, [customPrompt]);
+
+  const handleEnhanceTranscript = async () => {
+    if (!activeSourceId || !transcript || isEnhancing) return;
+    
+    setIsEnhancing(true);
+    setEnhancementProgress(0);
+    setShowSettings(false);
+    
+    try {
+      const totalSegments = transcript.segments.length;
+      const enhancedSegments = [];
+      
+      toast({
+        title: "Enhancing transcript...",
+        description: `Processing ${totalSegments} segments with AI`,
+      });
+      
+      // Process segments in batches to show progress
+      for (let i = 0; i < transcript.segments.length; i++) {
+        const segment = transcript.segments[i];
+        
+        try {
+          const response = await fetch('/api/enhance-transcript', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text: segment.text,
+              customPrompt,
+              context: {
+                title: activeSource?.title,
+                channel: activeSource?.channel,
+                speakers: transcript.speakers?.map(s => s.label),
+                topic: activeSource?.description
+              }
+            }),
+          });
+          
+          if (response.ok) {
+            const { enhancedText } = await response.json();
+            enhancedSegments.push({
+              ...segment,
+              text: enhancedText || segment.text
+            });
+          } else {
+            // Fallback to original text on error
+            enhancedSegments.push(segment);
+          }
+        } catch (error) {
+          console.warn('Enhancement failed for segment:', error);
+          enhancedSegments.push(segment);
+        }
+        
+        // Update progress
+        const progress = Math.round(((i + 1) / totalSegments) * 100);
+        setEnhancementProgress(progress);
+        
+        // Small delay to prevent API rate limiting
+        if (i < transcript.segments.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+      
+      // Update the transcript with enhanced segments
+      const enhancedTranscript = {
+        ...transcript,
+        segments: enhancedSegments
+      };
+      
+      // Update the store with enhanced transcript
+      setTranscript(activeSourceId, enhancedTranscript);
+      
+      toast({
+        title: "Enhancement complete!",
+        description: `Successfully enhanced ${totalSegments} segments`,
+      });
+      
+    } catch (error) {
+      console.error('Enhancement error:', error);
+      toast({
+        title: "Enhancement failed",
+        description: "Failed to enhance transcript. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsEnhancing(false);
+      setEnhancementProgress(0);
+    }
+  };
   
   const { 
     activeSourceId, 
@@ -254,19 +344,28 @@ Return only the enhanced text, no explanations.`);
               </button>
             </div>
             <span className="font-medium">
-              {!activeSource ? 'Waiting for video...' :
+              {isEnhancing ? 'Enhancing...' :
+               !activeSource ? 'Waiting for video...' :
                activeSource.status === 'transcribing' ? 'Transcribing...' :
                activeSource.status === 'ready' ? 'Ready' :
                activeSource.status === 'error' ? 'Error' :
                'Processing...'}
             </span>
           </div>
-          {activeSource?.status === 'transcribing' && (
+          {(activeSource?.status === 'transcribing' || isEnhancing) && (
             <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
               <div 
-                className="h-full bg-primary transition-all duration-300 ease-out"
-                style={{ width: `${progress}%` }}
+                className="h-full transition-all duration-300 ease-out"
+                style={{ 
+                  width: `${isEnhancing ? enhancementProgress : progress}%`,
+                  backgroundColor: isEnhancing ? '#10b981' : 'hsl(var(--primary))'
+                }}
               />
+            </div>
+          )}
+          {isEnhancing && (
+            <div className="text-xs text-muted-foreground">
+              Enhancing transcript: {enhancementProgress}%
             </div>
           )}
         </div>
@@ -435,16 +534,18 @@ Return only the enhanced text, no explanations.`);
               </Button>
               {activeSource?.status === 'ready' && enhancementSettings.enableAIEnhancement && (
                 <Button
-                  onClick={async () => {
-                    toast({
-                      title: "Enhancing transcript...",
-                      description: "AI enhancement in progress",
-                    });
-                    setShowSettings(false);
-                  }}
+                  onClick={handleEnhanceTranscript}
+                  disabled={isEnhancing}
                   className="flex-1"
                 >
-                  Enhance Now
+                  {isEnhancing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Enhancing...
+                    </>
+                  ) : (
+                    'Enhance Now'
+                  )}
                 </Button>
               )}
             </div>
