@@ -32,6 +32,25 @@ function log(message, type = 'info') {
 function checkEnvironmentVariables() {
   log('Checking environment variables...', 'info');
   
+  // Ensure data directory exists for SQLite
+  const fs = require('fs');
+  const dataDir = '/app/data';
+  
+  try {
+    if (!fs.existsSync(dataDir)) {
+      log('Creating data directory for shared database...', 'info');
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+  } catch (error) {
+    log(`Failed to create data directory: ${error.message}`, 'warning');
+  }
+  
+  // Set DATABASE_URL if not provided
+  if (!process.env.DATABASE_URL) {
+    process.env.DATABASE_URL = 'file:/app/data/shared.db';
+    log('Using shared SQLite database at /app/data/shared.db', 'info');
+  }
+  
   const required = {
     OPENAI_API_KEY: {
       check: (val) => val && val.startsWith('sk-') && val.length > 20,
@@ -43,7 +62,7 @@ function checkEnvironmentVariables() {
     DATABASE_URL: {
       check: (val) => !val || val.length > 0,
       error: 'Database URL should be configured',
-      default: 'file:./dev.db',
+      default: 'file:/app/data/shared.db',
     },
     NEXT_PUBLIC_SUPABASE_URL: {
       check: (val) => !val || val.includes('supabase.co'),
