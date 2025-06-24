@@ -3,8 +3,7 @@ nixPkgs = ["nodejs_20", "python3", "python3Packages.pip", "python3Packages.setup
 
 [phases.install]
 cmds = [
-  "npm ci",
-  "npx prisma generate"
+  "npm ci"
 ]
 
 [phases.build]
@@ -12,8 +11,8 @@ cmds = [
 cmds = ["echo 'Build will be handled by production script'"]
 
 [start]
-# Direct startup for Railway compatibility
-cmd = "npm run build && npm start"
+# Use our production startup script
+cmd = "npm run start:production"
 
 [variables]
 YOUTUBE_DL_SKIP_PYTHON_CHECK = "1"
