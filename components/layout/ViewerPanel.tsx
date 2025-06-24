@@ -96,6 +96,9 @@ Return only the enhanced text, no explanations.`);
               text: enhancedText || segment.text
             });
           } else {
+            // Log error details for debugging
+            const errorText = await response.text();
+            console.error(`Enhancement failed for segment ${i}:`, response.status, errorText);
             // Fallback to original text on error
             enhancedSegments.push(segment);
           }
@@ -114,6 +117,11 @@ Return only the enhanced text, no explanations.`);
         }
       }
       
+      // Count successful enhancements
+      const enhancedCount = enhancedSegments.filter((seg, i) => 
+        seg.text !== transcript.segments[i].text
+      ).length;
+      
       // Update the transcript with enhanced segments
       const enhancedTranscript = {
         ...transcript,
@@ -123,10 +131,17 @@ Return only the enhanced text, no explanations.`);
       // Update the store with enhanced transcript
       setTranscript(activeSourceId, enhancedTranscript);
       
-      toast({
-        title: "Enhancement complete!",
-        description: `Successfully enhanced ${totalSegments} segments`,
-      });
+      if (enhancedCount > 0) {
+        toast({
+          title: "Enhancement complete!",
+          description: `Successfully enhanced ${enhancedCount} of ${totalSegments} segments`,
+        });
+      } else {
+        toast({
+          title: "Enhancement complete",
+          description: "No changes were needed for this transcript",
+        });
+      }
       
     } catch (error) {
       console.error('Enhancement error:', error);
