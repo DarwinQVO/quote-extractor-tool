@@ -1,20 +1,27 @@
 "use client";
 
-import { Copy, FileText, Trash2, Upload, CheckCircle } from "lucide-react";
+import { Copy, FileText, Trash2, Upload, CheckCircle, Filter, Globe } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { useGoogleDocsExport } from "@/hooks/useGoogleDocsExport";
+import { useState } from "react";
 
 export function QuotesPanel() {
   const { quotes, removeQuote, sources, activeSourceId } = useStore();
   const { exportToGoogleDocs, isExporting } = useGoogleDocsExport();
+  const [showAllQuotes, setShowAllQuotes] = useState(false);
   
   const activeSource = sources.find(s => s.id === activeSourceId);
   
+  // Filter quotes based on current selection
+  const filteredQuotes = showAllQuotes 
+    ? quotes 
+    : quotes.filter(quote => quote.sourceId === activeSourceId);
+  
   const handleCopyAll = async () => {
-    if (quotes.length === 0) {
+    if (filteredQuotes.length === 0) {
       toast({
         title: "No quotes to copy",
         description: "Add some quotes first",
@@ -23,7 +30,7 @@ export function QuotesPanel() {
       return;
     }
     
-    const plainTextQuotes = quotes
+    const plainTextQuotes = filteredQuotes
       .map(quote => {
         const source = sources.find(s => s.id === quote.sourceId);
         if (!source) return '';
@@ -33,7 +40,7 @@ export function QuotesPanel() {
       .filter(Boolean)
       .join('\n\n');
     
-    const htmlQuotes = quotes
+    const htmlQuotes = filteredQuotes
       .map(quote => {
         const source = sources.find(s => s.id === quote.sourceId);
         if (!source) return '';
@@ -54,7 +61,7 @@ export function QuotesPanel() {
       
       toast({
         title: "Copied to clipboard",
-        description: `${quotes.length} quote${quotes.length > 1 ? 's' : ''} copied with clickable links`,
+        description: `${filteredQuotes.length} quote${filteredQuotes.length > 1 ? 's' : ''} copied with clickable links`,
       });
     } catch {
       // Fallback to plain text
@@ -62,7 +69,7 @@ export function QuotesPanel() {
         await navigator.clipboard.writeText(plainTextQuotes);
         toast({
           title: "Copied to clipboard",
-          description: `${quotes.length} quote${quotes.length > 1 ? 's' : ''} copied as plain text`,
+          description: `${filteredQuotes.length} quote${filteredQuotes.length > 1 ? 's' : ''} copied as plain text`,
         });
       } catch {
         toast({
@@ -114,9 +121,9 @@ export function QuotesPanel() {
   };
   
   const handleDeleteAll = () => {
-    if (quotes.length === 0) return;
+    if (filteredQuotes.length === 0) return;
     
-    quotes.forEach(quote => removeQuote(quote.id));
+    filteredQuotes.forEach(quote => removeQuote(quote.id));
     
     toast({
       title: "All quotes deleted",
@@ -151,68 +158,127 @@ export function QuotesPanel() {
 
   return (
     <div className="h-full flex flex-col bg-background">
-      <div className="p-6 border-b border-border flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">Quotes</h2>
-          <p className="text-sm text-muted-foreground">
-            {quotes.length} quote{quotes.length !== 1 ? 's' : ''} collected
-            {activeSource && quotes.filter(q => q.sourceId === activeSourceId).length > 0 && (
-              <span className="ml-2">
-                ({quotes.filter(q => q.sourceId === activeSourceId).length} from current video)
+      <div className="p-6 border-b border-border">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-semibold">Quotes</h2>
+            <p className="text-sm text-muted-foreground">
+              {showAllQuotes ? (
+                <>
+                  {quotes.length} quote{quotes.length !== 1 ? 's' : ''} from all videos
+                  {activeSource && quotes.filter(q => q.sourceId === activeSourceId).length > 0 && (
+                    <span className="ml-2 text-muted-foreground/70">
+                      ({quotes.filter(q => q.sourceId === activeSourceId).length} from current video)
+                    </span>
+                  )}
+                </>
+              ) : (
+                <>
+                  {filteredQuotes.length} quote{filteredQuotes.length !== 1 ? 's' : ''} from current video
+                  {quotes.length > filteredQuotes.length && (
+                    <span className="ml-2 text-muted-foreground/70">
+                      ({quotes.length} total)
+                    </span>
+                  )}
+                </>
+              )}
+            </p>
+          </div>
+            <Button 
+              variant="ghost"
+              size="sm"
+              onClick={handleCopyAll}
+              disabled={filteredQuotes.length === 0}
+              title="Copy all quotes"
+            >
+              <Copy className="w-4 h-4" />
+            </Button>
+            <Button 
+              variant="ghost"
+              size="sm"
+              onClick={handleGoogleDocsExport}
+              disabled={
+                quotes.filter(q => q.sourceId === activeSourceId).length === 0 || 
+                isExporting ||
+                !activeSource
+              }
+              title="Export to Google Docs"
+            >
+              {isExporting ? (
+                <Upload className="w-4 h-4 animate-pulse" />
+              ) : (
+                <FileText className="w-4 h-4" />
+              )}
+            </Button>
+            <Button 
+              variant="ghost"
+              size="sm"
+              onClick={handleDeleteAll}
+              disabled={filteredQuotes.length === 0}
+              title="Delete all quotes"
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+        
+        {/* Filter toggle */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant={showAllQuotes ? "ghost" : "default"}
+            size="sm"
+            onClick={() => setShowAllQuotes(false)}
+            className="flex items-center gap-2"
+          >
+            <Filter className="w-4 h-4" />
+            Current Video
+            {!showAllQuotes && filteredQuotes.length > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 bg-primary/10 text-primary text-xs rounded-full">
+                {filteredQuotes.length}
               </span>
             )}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button 
-            variant="ghost"
-            size="sm"
-            onClick={handleCopyAll}
-            disabled={quotes.length === 0}
-            title="Copy all quotes"
-          >
-            <Copy className="w-4 h-4" />
           </Button>
-          <Button 
-            variant="ghost"
+          <Button
+            variant={showAllQuotes ? "default" : "ghost"}
             size="sm"
-            onClick={handleGoogleDocsExport}
-            disabled={
-              quotes.filter(q => q.sourceId === activeSourceId).length === 0 || 
-              isExporting ||
-              !activeSource
-            }
-            title="Export to Google Docs"
+            onClick={() => setShowAllQuotes(true)}
+            className="flex items-center gap-2"
           >
-            {isExporting ? (
-              <Upload className="w-4 h-4 animate-pulse" />
-            ) : (
-              <FileText className="w-4 h-4" />
+            <Globe className="w-4 h-4" />
+            All Videos
+            {showAllQuotes && quotes.length > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 bg-primary/10 text-primary text-xs rounded-full">
+                {quotes.length}
+              </span>
             )}
-          </Button>
-          <Button 
-            variant="ghost"
-            size="sm"
-            onClick={handleDeleteAll}
-            disabled={quotes.length === 0}
-            title="Delete all quotes"
-          >
-            <Trash2 className="w-4 h-4" />
           </Button>
         </div>
       </div>
       
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
-        {quotes.length === 0 ? (
+        {filteredQuotes.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-8">
-            No quotes collected yet. Select text from the transcript to add quotes.
+            {showAllQuotes 
+              ? "No quotes collected yet. Select text from the transcript to add quotes."
+              : activeSource 
+                ? "No quotes from this video yet. Select text from the transcript to add quotes."
+                : "Select a video to view its quotes."
+            }
           </p>
         ) : (
-          quotes.map((quote) => {            
+          filteredQuotes.map((quote) => {     
+            const quoteSource = sources.find(s => s.id === quote.sourceId);       
             return (
               <Card key={quote.id} className={`group ${quote.exported ? 'ring-2 ring-green-500/20 bg-green-50/50' : ''}`}>
                 <CardContent className="p-4">
                   <div className="space-y-3">
+                    {/* Show video title when viewing all quotes */}
+                    {showAllQuotes && quoteSource && (
+                      <div className="text-xs text-muted-foreground border-b border-border pb-2 mb-3">
+                        <span className="font-medium">From:</span> {quoteSource.title}
+                      </div>
+                    )}
+                    
                     <blockquote className="text-sm leading-relaxed italic border-l-4 border-primary pl-4">
                       &ldquo;{quote.text}&rdquo;{' '}
                       <span className="text-xs text-muted-foreground not-italic">
