@@ -120,14 +120,13 @@ export async function POST(request: NextRequest) {
     // Check if transcript already exists and is recent
     const existingTranscript = await prisma.transcript.findUnique({
       where: { sourceId },
-      include: { segments: true },
     });
     
     if (existingTranscript) {
       const hoursSinceUpdate = (Date.now() - existingTranscript.updatedAt.getTime()) / (1000 * 60 * 60);
-      if (hoursSinceUpdate < 24) {
+      if (hoursSinceUpdate < 24 && existingTranscript.segments) {
         // Return cached transcript
-        const segments: Segment[] = existingTranscript.segments.map(s => ({
+        const segments: Segment[] = (existingTranscript.segments as any[]).map(s => ({
           speaker: s.speaker,
           start: s.start,
           end: s.end,
@@ -545,72 +544,29 @@ export async function POST(request: NextRequest) {
       // Get unique speakers for management
       const uniqueSpeakers = [...new Set(segments.map(seg => seg.speaker))];
       
-      // Save to database
+      // Save to database with JSON fields
       if (existingTranscript) {
-        // Clean up existing data
-        await prisma.segment.deleteMany({
-          where: { transcriptId: existingTranscript.id },
-        });
-        await prisma.word.deleteMany({
-          where: { transcriptId: existingTranscript.id },
-        });
-        await prisma.speaker.deleteMany({
-          where: { transcriptId: existingTranscript.id },
-        });
-        
         await prisma.transcript.update({
           where: { id: existingTranscript.id },
           data: {
-            segments: {
-              create: segments.map(seg => ({
-                start: seg.start,
-                end: seg.end,
-                speaker: seg.speaker,
-                text: seg.text,
-              })),
-            },
-            words: words.length > 0 ? {
-              create: words.map(word => ({
-                text: word.text,
-                start: word.start,
-                end: word.end,
-                speaker: null, // Will be assigned later based on time ranges
-              })),
-            } : undefined,
-            speakers: {
-              create: uniqueSpeakers.map(speakerName => ({
-                originalName: speakerName,
-                customName: speakerName, // Initially same as original
-              })),
-            },
+            segments: segments,
+            words: words,
+            speakers: uniqueSpeakers.map(speakerName => ({
+              originalName: speakerName,
+              customName: speakerName,
+            })),
           },
         });
       } else {
         await prisma.transcript.create({
           data: {
             sourceId,
-            segments: {
-              create: segments.map(seg => ({
-                start: seg.start,
-                end: seg.end,
-                speaker: seg.speaker,
-                text: seg.text,
-              })),
-            },
-            words: words.length > 0 ? {
-              create: words.map(word => ({
-                text: word.text,
-                start: word.start,
-                end: word.end,
-                speaker: null, // Will be assigned later based on time ranges
-              })),
-            } : undefined,
-            speakers: {
-              create: uniqueSpeakers.map(speakerName => ({
-                originalName: speakerName,
-                customName: speakerName, // Initially same as original
-              })),
-            },
+            segments: segments,
+            words: words,
+            speakers: uniqueSpeakers.map(speakerName => ({
+              originalName: speakerName,
+              customName: speakerName,
+            })),
           },
         });
       }

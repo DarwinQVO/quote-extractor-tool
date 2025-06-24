@@ -5,22 +5,22 @@ const globalForPrisma = globalThis as unknown as {
   prismaInitialized: boolean;
 };
 
-// Railway PostgreSQL setup
+// Database URL setup
 function getDatabaseUrl(): string {
-  // Railway provides DATABASE_URL when PostgreSQL service is added
+  // Use provided DATABASE_URL
   if (process.env.DATABASE_URL) {
     return process.env.DATABASE_URL;
   }
   
-  // Local development fallback to SQLite
-  if (process.env.NODE_ENV === 'development') {
-    console.log('🔧 Using local SQLite for development');
-    return 'file:./dev.db';
+  // Production fallback to SQLite with persistent volume
+  if (process.env.NODE_ENV === 'production') {
+    console.log('🔧 Using shared SQLite in production');
+    return 'file:/app/data/shared.db';
   }
   
-  // Production fallback to SQLite with persistent volume
-  console.log('⚠️ PostgreSQL not configured, using shared SQLite in production');
-  return 'file:/app/data/shared.db';
+  // Local development default
+  console.log('🔧 Using local SQLite for development');
+  return 'file:./dev.db';
 }
 
 export async function ensureDatabaseTables() {
