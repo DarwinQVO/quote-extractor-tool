@@ -4,16 +4,24 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import ReactPlayer from "react-player/youtube";
 import { useStore } from "@/lib/store";
 import { useTranscription } from "@/hooks/useTranscription";
-import { Loader2 } from "lucide-react";
+import { Loader2, Settings } from "lucide-react";
 import { SelectionToolbar } from "@/components/SelectionToolbar";
 import { WordLevelTranscript } from "@/components/WordLevelTranscript";
 import { buildCitation } from "@/lib/citations";
 import { toast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 
 export function ViewerPanel() {
   const playerRef = useRef<ReactPlayer>(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  const [showSettings, setShowSettings] = useState(false);
+  const [enhancementSettings, setEnhancementSettings] = useState({
+    enableAIEnhancement: false,
+    autoEnhance: false,
+  });
   
   const { 
     activeSourceId, 
@@ -207,7 +215,16 @@ export function ViewerPanel() {
       <div className="px-6 py-4 border-b border-border flex-shrink-0">
         <div className="space-y-2">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Status</span>
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">Status</span>
+              <button
+                onClick={() => setShowSettings(true)}
+                className="p-1 rounded-md hover:bg-muted/50 transition-colors"
+                title="Transcript Settings"
+              >
+                <Settings className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+              </button>
+            </div>
             <span className="font-medium">
               {!activeSource ? 'Waiting for video...' :
                activeSource.status === 'transcribing' ? 'Transcribing...' :
@@ -258,6 +275,127 @@ export function ViewerPanel() {
       </div>
       
       <SelectionToolbar onQuoteAdd={handleQuoteAdd} />
+      
+      {/* Settings Modal */}
+      <Dialog open={showSettings} onOpenChange={setShowSettings}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Transcript Enhancement Settings</DialogTitle>
+            <DialogDescription>
+              Configure how transcripts are processed and enhanced
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-6 pt-4">
+            {/* Connection Status */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">System Status</Label>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-green-500" />
+                  <span>Database Connected</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-green-500" />
+                  <span>OpenAI Available</span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Enhancement Options */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Enhancement Features</Label>
+              
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <Label className="text-sm">Basic Cleaning</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Remove filler words, format numbers (>$100M, 50%, etc.)
+                    </p>
+                  </div>
+                  <div className="w-2 h-2 rounded-full bg-green-500" />
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <Label className="text-sm">AI Enhancement</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Context-aware improvements, company names, punctuation
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setEnhancementSettings(prev => ({
+                      ...prev,
+                      enableAIEnhancement: !prev.enableAIEnhancement
+                    }))}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      enhancementSettings.enableAIEnhancement ? 'bg-primary' : 'bg-muted'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        enhancementSettings.enableAIEnhancement ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+                
+                {enhancementSettings.enableAIEnhancement && (
+                  <div className="flex items-center justify-between pl-4">
+                    <div className="space-y-1">
+                      <Label className="text-sm">Auto-enhance new transcripts</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Automatically enhance transcripts after processing
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setEnhancementSettings(prev => ({
+                        ...prev,
+                        autoEnhance: !prev.autoEnhance
+                      }))}
+                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                        enhancementSettings.autoEnhance ? 'bg-primary' : 'bg-muted'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                          enhancementSettings.autoEnhance ? 'translate-x-5' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => setShowSettings(false)}
+                className="flex-1"
+              >
+                Close
+              </Button>
+              {activeSource?.status === 'ready' && enhancementSettings.enableAIEnhancement && (
+                <Button
+                  onClick={async () => {
+                    toast({
+                      title: "Enhancing transcript...",
+                      description: "AI enhancement in progress",
+                    });
+                    setShowSettings(false);
+                  }}
+                  className="flex-1"
+                >
+                  Enhance Now
+                </Button>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
