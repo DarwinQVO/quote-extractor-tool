@@ -28,7 +28,7 @@ export function QuotesPanel() {
         const source = sources.find(s => s.id === quote.sourceId);
         if (!source) return '';
         
-        return `"${quote.text}"\n— (${quote.citation})`;
+        return `"${quote.text}"\n${quote.citation}`;
       })
       .filter(Boolean)
       .join('\n\n');
@@ -38,7 +38,7 @@ export function QuotesPanel() {
         const source = sources.find(s => s.id === quote.sourceId);
         if (!source) return '';
         
-        return `"${quote.text}"<br>— (<a href="${quote.timestampLink}">${quote.citation}</a>)`;
+        return `"${quote.text}"<br><a href="${quote.timestampLink}">${quote.citation}</a>`;
       })
       .filter(Boolean)
       .join('<br><br>');
@@ -79,8 +79,8 @@ export function QuotesPanel() {
     if (!source) return;
     
     // Create rich text format for Google Docs
-    const plainText = `"${quote.text}"\n— (${quote.citation})`;
-    const htmlFormat = `"${quote.text}"<br>— (<a href="${quote.timestampLink}">${quote.citation}</a>)`;
+    const plainText = `"${quote.text}"\n${quote.citation}`;
+    const htmlFormat = `"${quote.text}"<br><a href="${quote.timestampLink}">${quote.citation}</a>`;
     
     try {
       // Use modern clipboard API to write multiple formats
