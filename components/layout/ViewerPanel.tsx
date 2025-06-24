@@ -179,7 +179,7 @@ export function ViewerPanel() {
 
   return (
     <div className="h-full flex flex-col bg-muted/10 border-l border-border">
-      <div className="relative aspect-video bg-black flex-shrink-0 max-h-[40vh]">
+      <div className="relative aspect-video bg-black flex-shrink-0 max-h-[40vh] mx-6 mt-6 rounded-xl overflow-hidden shadow-lg">
         {activeSource ? (
           <ReactPlayer
             ref={playerRef}
@@ -198,7 +198,7 @@ export function ViewerPanel() {
             }}
           />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center">
+          <div className="absolute inset-0 flex items-center justify-center rounded-xl">
             <p className="text-muted-foreground">No video loaded</p>
           </div>
         )}
