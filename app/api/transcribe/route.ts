@@ -8,6 +8,7 @@ import fs from 'fs/promises';
 import { constants as fsConstants } from 'fs';
 import path from 'path';
 import { tmpdir } from 'os';
+import { spawn } from 'child_process';
 
 import { setProgress, deleteProgress } from '@/lib/transcription-progress';
 import { YouTubeDLInfo } from '@/lib/youtube-types';
@@ -19,25 +20,378 @@ function getOpenAIClient() {
   if (!openaiClient) {
     const apiKey = process.env.OPENAI_API_KEY;
     
-    console.log('🔍 Raw OpenAI Check:', {
-      exists: !!apiKey,
-      value: apiKey || 'UNDEFINED',
-      length: apiKey?.length || 0,
-      startsWithSk: apiKey?.startsWith('sk-') || false,
-    });
+    // Only log in development
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('🔍 OpenAI Check:', {
+        exists: !!apiKey,
+        length: apiKey?.length || 0,
+        startsWithSk: apiKey?.startsWith('sk-') || false,
+      });
+    }
     
     if (!apiKey || apiKey === 'build-placeholder' || apiKey === 'build-test') {
-      throw new Error(`OpenAI API key not configured. Current: "${apiKey}"`);
+      throw new Error('OpenAI API key not configured');
     }
     
     if (!apiKey.startsWith('sk-')) {
-      throw new Error(`Invalid OpenAI API key format. Must start with 'sk-'`);
+      throw new Error('Invalid OpenAI API key format');
     }
     
     openaiClient = new OpenAI({ apiKey });
-    console.log('✅ OpenAI client created');
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('✅ OpenAI client created');
+    }
   }
   return openaiClient;
+}
+
+// Function to check if ffmpeg is available
+async function isFFmpegAvailable(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const ffmpeg = spawn('ffmpeg', ['-version']);
+    ffmpeg.on('close', (code) => resolve(code === 0));
+    ffmpeg.on('error', () => resolve(false));
+  });
+}
+
+// Function to split audio into chunks using ffmpeg
+async function splitAudioIntoChunks(audioPath: string, chunkDurationMinutes: number = 10): Promise<string[]> {
+  const chunkPaths: string[] = [];
+  const tempDir = tmpdir();
+  const fileExtension = path.extname(audioPath);
+  const baseName = path.basename(audioPath, fileExtension);
+  
+  // Get audio duration using ffprobe
+  const duration = await getAudioDuration(audioPath);
+  const chunkDurationSeconds = chunkDurationMinutes * 60;
+  const numChunks = Math.ceil(duration / chunkDurationSeconds);
+  
+  console.log(`Splitting ${duration}s audio into ${numChunks} chunks of ${chunkDurationMinutes} minutes each`);
+  
+  for (let i = 0; i < numChunks; i++) {
+    const startTime = i * chunkDurationSeconds;
+    const chunkPath = path.join(tempDir, `${baseName}_chunk_${i}${fileExtension}`);
+    
+    await new Promise<void>((resolve, reject) => {
+      // Progressive fallback strategy for maximum compatibility
+      const strategies = [
+        // Strategy 1: Copy stream (fastest, highest compatibility)
+        ['-i', audioPath, '-ss', startTime.toString(), '-t', chunkDurationSeconds.toString(), '-c', 'copy', '-avoid_negative_ts', 'make_zero', chunkPath],
+        // Strategy 2: Re-encode with aac (widely supported)
+        ['-i', audioPath, '-ss', startTime.toString(), '-t', chunkDurationSeconds.toString(), '-c:a', 'aac', '-b:a', '128k', '-avoid_negative_ts', 'make_zero', chunkPath],
+        // Strategy 3: Re-encode with mp3 (universal compatibility)
+        ['-i', audioPath, '-ss', startTime.toString(), '-t', chunkDurationSeconds.toString(), '-c:a', 'libmp3lame', '-b:a', '128k', '-avoid_negative_ts', 'make_zero', chunkPath]
+      ];
+      
+      let currentStrategy = 0;
+      
+      function tryNextStrategy() {
+        if (currentStrategy >= strategies.length) {
+          reject(new Error('All ffmpeg strategies failed'));
+          return;
+        }
+        
+        const args = strategies[currentStrategy];
+        console.log(`Trying ffmpeg strategy ${currentStrategy + 1}/${strategies.length}: ${args.join(' ')}`);
+        
+        const ffmpeg = spawn('ffmpeg', args);
+        
+        let stderr = '';
+        ffmpeg.stderr.on('data', (data) => {
+          stderr += data.toString();
+        });
+        
+        ffmpeg.on('close', (code) => {
+          if (code === 0) {
+            console.log(`✅ ffmpeg strategy ${currentStrategy + 1} succeeded`);
+            resolve();
+          } else {
+            console.log(`❌ ffmpeg strategy ${currentStrategy + 1} failed with code ${code}`);
+            console.log('stderr:', stderr);
+            currentStrategy++;
+            tryNextStrategy();
+          }
+        });
+        
+        ffmpeg.on('error', (err) => {
+          console.log(`❌ ffmpeg strategy ${currentStrategy + 1} error:`, err);
+          currentStrategy++;
+          tryNextStrategy();
+        });
+      }
+      
+      tryNextStrategy();
+    });
+    
+    chunkPaths.push(chunkPath);
+  }
+  
+  return chunkPaths;
+}
+
+// Fallback: Download lower quality audio for large files
+async function downloadLowerQualityAudio(videoId: string, sourceId: string): Promise<string> {
+  const tempDir = tmpdir();
+  const ytDlp = await getYTDlpWrap();
+  
+  console.log('🔧 Downloading lower quality audio for large file...');
+  
+  // Try to download lower quality format (opus/webm at lower bitrate)
+  const audioPath = path.join(tempDir, `${sourceId}_${videoId}_low.webm`);
+  
+  try {
+    await ytDlp.execPromise([
+      `https://www.youtube.com/watch?v=${videoId}`,
+      '-f', 'worstaudio[ext=webm]/worst[ext=webm]/worstaudio',
+      '--extract-audio',
+      '--audio-format', 'webm',
+      '--audio-quality', '9', // Lowest quality
+      '-o', audioPath
+    ]);
+    
+    // Check file size
+    const stats = await fs.stat(audioPath);
+    console.log(`Low quality audio downloaded: ${stats.size} bytes`);
+    
+    const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
+    if (stats.size > MAX_FILE_SIZE) {
+      throw new Error('Even low quality audio exceeds 25MB limit');
+    }
+    
+    return audioPath;
+  } catch (error) {
+    console.error('Low quality download failed:', error);
+    throw error;
+  }
+}
+
+// Function to get audio duration using ffprobe
+async function getAudioDuration(audioPath: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const ffprobe = spawn('ffprobe', [
+      '-v', 'quiet',
+      '-show_entries', 'format=duration',
+      '-of', 'csv=p=0',
+      audioPath
+    ]);
+    
+    let output = '';
+    ffprobe.stdout.on('data', (data) => {
+      output += data.toString();
+    });
+    
+    ffprobe.on('close', (code) => {
+      if (code === 0) {
+        const duration = parseFloat(output.trim());
+        resolve(duration);
+      } else {
+        reject(new Error(`ffprobe exited with code ${code}`));
+      }
+    });
+    
+    ffprobe.on('error', reject);
+  });
+}
+
+// Function to transcribe a single file with retry mechanism
+async function transcribeSingleFile(audioPath: string, fileExtension: string, retries: number = 3, timeoutMinutes: number = 15) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      console.log(`Transcribing attempt ${attempt}/${retries} for: audio${fileExtension}`);
+      
+      const { createReadStream } = await import('fs');
+      
+      const audioFileName = `audio${fileExtension}`;
+      const audioFile = createReadStream(audioPath) as any;
+      
+      audioFile.name = audioFileName;
+      audioFile.type = fileExtension === '.m4a' ? 'audio/mp4' : 
+                      fileExtension === '.mp3' ? 'audio/mpeg' :
+                      fileExtension === '.wav' ? 'audio/wav' :
+                      fileExtension === '.ogg' ? 'audio/ogg' :
+                      'audio/webm';
+      
+      const openai = getOpenAIClient();
+      const transcriptionPromise = openai.audio.transcriptions.create({
+        file: audioFile,
+        model: 'whisper-1',
+        response_format: 'verbose_json',
+        timestamp_granularities: ['segment', 'word'],
+      });
+      
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error(`Transcription timeout after ${timeoutMinutes} minutes`)), timeoutMinutes * 60 * 1000)
+      );
+      
+      const result = await Promise.race([transcriptionPromise, timeoutPromise]) as any;
+      console.log(`✅ Transcription successful on attempt ${attempt}`);
+      return result;
+      
+    } catch (error) {
+      console.error(`❌ Transcription attempt ${attempt} failed:`, error instanceof Error ? error.message : error);
+      
+      if (attempt === retries) {
+        throw error;
+      }
+      
+      // Exponential backoff: wait 2^attempt seconds before retry
+      const waitTime = Math.pow(2, attempt) * 1000;
+      console.log(`⏳ Waiting ${waitTime/1000}s before retry...`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+  }
+}
+
+// Function to transcribe audio in chunks
+async function transcribeInChunks(audioPath: string, sourceId: string, fileExtension: string, videoId?: string) {
+  try {
+    console.log('Starting chunked transcription process...');
+    
+    // Check if ffmpeg is available for chunking
+    const ffmpegAvailable = await isFFmpegAvailable();
+    console.log(`FFmpeg available: ${ffmpegAvailable}`);
+    
+    if (ffmpegAvailable) {
+      // Use ffmpeg to split audio into chunks - smaller chunks for better reliability
+      const chunkPaths = await splitAudioIntoChunks(audioPath, 6); // 6-minute chunks for better reliability
+      console.log(`📚 Created ${chunkPaths.length} chunks using ffmpeg`);
+      
+      const allSegments: Array<{ start: number; end: number; text: string }> = [];
+      const allWords: Array<{ word: string; start: number; end: number }> = [];
+      
+      // Smart parallel processing with Railway optimization
+      const isProduction = process.env.NODE_ENV === 'production';
+      const isRailway = process.env.RAILWAY_ENVIRONMENT_NAME || process.env.RAILWAY_PROJECT_ID;
+      const maxConcurrency = isRailway ? 2 : (isProduction ? 3 : Math.min(6, chunkPaths.length)); // Even more conservative on Railway
+      
+      console.log(`🚀 Processing ${chunkPaths.length} chunks with max concurrency: ${maxConcurrency}`);
+      
+      // Process chunks in controlled batches to avoid memory overload
+      const results: Array<PromiseSettledResult<{ index: number; transcription: any; chunkPath: string }>> = [];
+      
+      for (let i = 0; i < chunkPaths.length; i += maxConcurrency) {
+        const batch = chunkPaths.slice(i, i + maxConcurrency);
+        console.log(`📦 Processing batch ${Math.floor(i/maxConcurrency) + 1}/${Math.ceil(chunkPaths.length/maxConcurrency)} (${batch.length} chunks)`);
+        
+        const batchPromises = batch.map(async (chunkPath, batchIndex) => {
+          const globalIndex = i + batchIndex;
+          try {
+            console.log(`🎯 Processing chunk ${globalIndex + 1}/${chunkPaths.length}`);
+            
+            // For chunks, use production-optimized timeout
+            const timeoutMinutes = isProduction ? 25 : 15; // Longer timeout in production
+            const chunkTranscription = await transcribeSingleFile(chunkPath, fileExtension, 2, timeoutMinutes);
+            
+            console.log(`✅ Chunk ${globalIndex + 1}/${chunkPaths.length} completed`);
+            
+            return {
+              index: globalIndex,
+              transcription: chunkTranscription,
+              chunkPath
+            };
+          } catch (error) {
+            console.error(`❌ Chunk ${globalIndex + 1} failed:`, error);
+            throw { index: globalIndex, error, chunkPath };
+          }
+        });
+        
+        const batchResults = await Promise.allSettled(batchPromises);
+        results.push(...batchResults);
+        
+        // Brief pause between batches in production to reduce system load
+        if (isProduction && i + maxConcurrency < chunkPaths.length) {
+          console.log('⏱️ Brief pause between batches...');
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      }
+      
+      // Process successful results in order
+      let completedChunks = 0;
+      for (let i = 0; i < results.length; i++) {
+        const result = results[i];
+        
+        if (result.status === 'fulfilled') {
+          const { index, transcription } = result.value;
+          const chunkStartTime = index * 6 * 60; // 6 minutes per chunk
+          
+          // Adjust timestamps to account for chunk offset
+          if (transcription.segments) {
+            for (const segment of transcription.segments) {
+              allSegments.push({
+                start: segment.start + chunkStartTime,
+                end: segment.end + chunkStartTime,
+                text: segment.text
+              });
+            }
+          }
+          
+          if (transcription.words) {
+            for (const word of transcription.words) {
+              allWords.push({
+                word: word.word,
+                start: word.start + chunkStartTime,
+                end: word.end + chunkStartTime
+              });
+            }
+          }
+          
+          completedChunks++;
+          
+          // Update progress based on completed chunks
+          const progressPercent = 65 + (completedChunks / chunkPaths.length) * 15;
+          setProgress(sourceId, Math.round(progressPercent));
+          
+        } else {
+          const { index, error } = result.reason;
+          console.error(`💥 Chunk ${index + 1} failed permanently:`, error);
+          throw new Error(`Chunk ${index + 1} processing failed: ${error instanceof Error ? error.message : error}`);
+        }
+      }
+      
+      // Aggressive cleanup for production environments
+      console.log('🧹 Cleaning up chunk files...');
+      await Promise.all(chunkPaths.map(path => fs.unlink(path).catch(console.error)));
+      
+      // Force garbage collection in production if available
+      if (isProduction && global.gc) {
+        console.log('♻️ Running garbage collection...');
+        global.gc();
+      }
+      
+      console.log(`Chunked transcription complete: ${allSegments.length} segments, ${allWords.length} words`);
+      
+      return {
+        segments: allSegments,
+        words: allWords
+      };
+      
+    } else {
+      // Fallback: Try to download lower quality audio
+      console.log('⚠️ FFmpeg not available, attempting low quality download fallback');
+      
+      if (!videoId) {
+        throw new Error('Video ID required for low quality fallback, but ffmpeg not available for chunking');
+      }
+      
+      const lowQualityPath = await downloadLowerQualityAudio(videoId, sourceId);
+      console.log('✅ Low quality audio downloaded, transcribing...');
+      
+      setProgress(sourceId, 70);
+      
+      try {
+        // For low quality fallback, use standard timeout but allow retries
+        const transcription = await transcribeSingleFile(lowQualityPath, '.webm', 3, 15);
+        return transcription;
+      } finally {
+        // Clean up low quality file
+        await fs.unlink(lowQualityPath).catch(console.error);
+      }
+    }
+    
+  } catch (error) {
+    console.error('Chunked transcription failed:', error);
+    throw error;
+  }
 }
 
 // Initialize yt-dlp-wrap - use system binary if available
@@ -411,73 +765,26 @@ export async function POST(request: NextRequest) {
       console.log(`- File size: ${fileStats.size} bytes`);
       console.log(`- File modified: ${fileStats.mtime}`);
       
-      // Read the audio file as a buffer
-      const audioBuffer = await fs.readFile(actualAudioPath);
+      // OpenAI file size limit is 25MB (26,214,400 bytes)
+      const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB in bytes
+      const needsChunking = fileStats.size > MAX_FILE_SIZE;
       
-      // Create a proper filename with the correct extension
-      const audioFileName = `audio${fileExtension}`;
-      console.log(`Creating file object with name: ${audioFileName}`);
-      
-      // For OpenAI API in Node.js, we need to use fs.createReadStream
-      // This is the officially recommended approach for the OpenAI Node.js SDK
-      const { createReadStream } = await import('fs');
-      
-      // Ensure we have a file with the correct extension  
-      const correctExtensionPath = actualAudioPath.replace(/\.[^.]+$/, fileExtension);
-      if (correctExtensionPath !== actualAudioPath) {
-        await fs.copyFile(actualAudioPath, correctExtensionPath);
-        actualAudioPath = correctExtensionPath;
-      }
-      
-      // Create the stream that OpenAI SDK expects
-      const audioFile = createReadStream(actualAudioPath) as any;
-      
-      // Add required properties for OpenAI SDK
-      audioFile.name = audioFileName;
-      audioFile.type = fileExtension === '.m4a' ? 'audio/mp4' : 
-                      fileExtension === '.mp3' ? 'audio/mpeg' :
-                      fileExtension === '.wav' ? 'audio/wav' :
-                      fileExtension === '.ogg' ? 'audio/ogg' :
-                      'audio/webm';
-      
-      setProgress(sourceId, 65);
-      
-      console.log('About to start OpenAI transcription with file stream...');
-      console.log('Audio file name:', audioFile.name);
-      console.log('Audio file type:', audioFile.type);
-      console.log('Audio file path:', audioFile.path);
+      console.log(`File size check: ${fileStats.size} bytes, needs chunking: ${needsChunking}`);
       
       let transcription: {
         segments?: Array<{ start: number; end: number; text: string }>;
         words?: Array<{ word: string; start: number; end: number }>;
       };
       
-      try {
-        // Add timeout to prevent hanging
-        const openai = getOpenAIClient();
-        const transcriptionPromise = openai.audio.transcriptions.create({
-          file: audioFile,
-          model: 'whisper-1',
-          response_format: 'verbose_json',
-          timestamp_granularities: ['segment', 'word'],
-        });
-        
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Transcription timeout after 5 minutes')), 5 * 60 * 1000)
-        );
-        
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        transcription = await Promise.race([transcriptionPromise, timeoutPromise]) as any;
-        
-        console.log('OpenAI transcription completed successfully');
-      } catch (transcriptionError) {
-        console.error('OpenAI transcription failed:', transcriptionError);
-        console.error('Error details:', {
-          name: transcriptionError instanceof Error ? transcriptionError.name : 'Unknown',
-          message: transcriptionError instanceof Error ? transcriptionError.message : String(transcriptionError),
-          stack: transcriptionError instanceof Error ? transcriptionError.stack : 'No stack'
-        });
-        throw transcriptionError;
+      if (needsChunking) {
+        console.log('🔪 File exceeds 25MB limit, chunking required');
+        setProgress(sourceId, 60);
+        transcription = await transcribeInChunks(actualAudioPath, sourceId, fileExtension, videoId);
+      } else {
+        console.log('📁 File within size limit, processing normally');
+        // For single large files, use extended timeout
+        const timeoutMinutes = fileStats.size > 15 * 1024 * 1024 ? 20 : 15; // 20 min for files > 15MB
+        transcription = await transcribeSingleFile(actualAudioPath, fileExtension, 3, timeoutMinutes);
       }
       
       setProgress(sourceId, 80);

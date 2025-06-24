@@ -3,10 +3,10 @@ import { loadTranscript } from '@/lib/database';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { sourceId: string } }
+  { params }: { params: Promise<{ sourceId: string }> }
 ) {
   try {
-    const sourceId = params.sourceId;
+    const { sourceId } = await params;
     
     if (!sourceId) {
       return NextResponse.json({ error: 'Source ID is required' }, { status: 400 });
