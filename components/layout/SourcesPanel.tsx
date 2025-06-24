@@ -119,9 +119,12 @@ export function SourcesPanel() {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  removeSource(source.id);
+                  if (confirm(`¿Eliminar "${source.title}"? Esto borrará el video, transcript y todas las quotes asociadas.`)) {
+                    removeSource(source.id);
+                  }
                 }}
                 className="absolute top-2 right-2 p-1 rounded-lg hover:bg-background/80 transition-colors"
+                title="Eliminar video y transcript"
               >
                 <X className="w-4 h-4" />
               </button>

@@ -10,47 +10,58 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Source {
+  id          String    @id
+  url         String
+  title       String
+  channel     String
+  duration    Int       @default(0)
+  thumbnail   String    @default("")
+  description String?
+  uploadDate  DateTime?
+  viewCount   Int?
+  status      String    @default("pending") // fetching-metadata, pending, transcribing, ready, error
+  error       String?
+  addedAt     DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relations
+  quotes      Quote[]
+  transcripts Transcript[]
+}
+
+model Quote {
+  id            String   @id
+  sourceId      String
+  text          String
+  speaker       String
+  startTime     Float
+  endTime       Float
+  citation      String
+  timestampLink String
+  exported      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  source        Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  
+  @@index([sourceId])
+}
+
 model Transcript {
   id        String    @id @default(cuid())
   sourceId  String    @unique
-  segments  Segment[]
-  words     Word[]
-  speakers  Speaker[]
+  segments  Json      @default("[]") // Store as JSON for simplicity
+  words     Json      @default("[]") // Store as JSON for simplicity  
+  speakers  Json      @default("[]") // Store as JSON for simplicity
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+  
+  // Relations
+  source    Source    @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  
+  @@index([sourceId])
 }
 
-model Segment {
-  id           String     @id @default(cuid())
-  transcriptId String
-  transcript   Transcript @relation(fields: [transcriptId], references: [id], onDelete: Cascade)
-  start        Float
-  end          Float
-  speaker      String
-  text         String
-  
-  @@index([transcriptId])
-}
-
-model Word {
-  id           String     @id @default(cuid())
-  transcriptId String
-  transcript   Transcript @relation(fields: [transcriptId], references: [id], onDelete: Cascade)
-  text         String
-  start        Float
-  end          Float
-  speaker      String?
-  
-  @@index([transcriptId])
-  @@index([start])
-}
-
-model Speaker {
-  id           String     @id @default(cuid())
-  transcriptId String
-  transcript   Transcript @relation(fields: [transcriptId], references: [id], onDelete: Cascade)
-  originalName String     // AI-detected name
-  customName   String     // User-edited name
-  
-  @@index([transcriptId])
-}

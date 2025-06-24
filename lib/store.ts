@@ -149,6 +149,13 @@ export const useStore = create<AppState>((set, get) => ({
       saveToStorage('quote-extractor-activeSourceId', newActiveSourceId);
       saveToStorage('quote-extractor-transcripts', mapToArray(newTranscripts));
       
+      // Sync removal to database if online
+      if (state.isOnline) {
+        import('./database').then(({ deleteSource }) => {
+          deleteSource(id).catch(console.error);
+        });
+      }
+      
       return {
         sources: newSources,
         quotes: newQuotes,
