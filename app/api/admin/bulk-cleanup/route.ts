@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { supabase } from '@/lib/supabase';
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,9 +8,9 @@ export async function POST(request: NextRequest) {
     if (action === 'delete-selected' && Array.isArray(sourceIds)) {
       // Delete selected sources and their related data
       for (const sourceId of sourceIds) {
-        await prisma.quote.deleteMany({ where: { sourceId } });
-        await prisma.transcript.deleteMany({ where: { sourceId } });
-        await prisma.source.delete({ where: { id: sourceId } });
+        await supabase.from('quotes').delete().eq('source_id', sourceId);
+        await supabase.from('transcripts').delete().eq('source_id', sourceId);
+        await supabase.from('sources').delete().eq('id', sourceId);
       }
       
       return NextResponse.json({ 
@@ -20,43 +20,45 @@ export async function POST(request: NextRequest) {
     }
     
     if (action === 'delete-all-failed') {
-      // Delete all sources with error status
-      const failedSources = await prisma.source.findMany({
-        where: { status: 'error' },
-        select: { id: true }
-      });
+      // Get all sources with error status
+      const { data: failedSources, error } = await supabase
+        .from('sources')
+        .select('id')
+        .eq('status', 'error');
       
-      for (const source of failedSources) {
-        await prisma.quote.deleteMany({ where: { sourceId: source.id } });
-        await prisma.transcript.deleteMany({ where: { sourceId: source.id } });
-        await prisma.source.delete({ where: { id: source.id } });
+      if (error) throw error;
+      
+      for (const source of failedSources || []) {
+        await supabase.from('quotes').delete().eq('source_id', source.id);
+        await supabase.from('transcripts').delete().eq('source_id', source.id);
+        await supabase.from('sources').delete().eq('id', source.id);
       }
       
       return NextResponse.json({ 
         success: true, 
-        message: `Deleted ${failedSources.length} failed transcripts` 
+        message: `Deleted ${failedSources?.length || 0} failed transcripts` 
       });
     }
     
     if (action === 'delete-all-test') {
-      // Delete sources that look like test data (short titles, common test URLs, etc.)
-      const testSources = await prisma.source.findMany({
-        where: {
-          OR: [
-            { title: { contains: 'test' } },
-            { title: { contains: 'Test' } },
-            { title: { contains: 'Loading...' } },
-            { channel: '' },
-            { duration: { lte: 60 } }, // Very short videos
-          ]
-        },
-        select: { id: true }
-      });
+      // Delete sources that look like test data
+      const { data: sources, error } = await supabase
+        .from('sources')
+        .select('id, title, channel, duration');
+      
+      if (error) throw error;
+      
+      const testSources = (sources || []).filter(source => 
+        source.title.toLowerCase().includes('test') ||
+        source.title === 'Loading...' ||
+        source.channel === '' ||
+        source.duration <= 60
+      );
       
       for (const source of testSources) {
-        await prisma.quote.deleteMany({ where: { sourceId: source.id } });
-        await prisma.transcript.deleteMany({ where: { sourceId: source.id } });
-        await prisma.source.delete({ where: { id: source.id } });
+        await supabase.from('quotes').delete().eq('source_id', source.id);
+        await supabase.from('transcripts').delete().eq('source_id', source.id);
+        await supabase.from('sources').delete().eq('id', source.id);
       }
       
       return NextResponse.json({ 

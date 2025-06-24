@@ -10,7 +10,6 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@prisma/client": "^6.10.1",
     "@radix-ui/react-dialog": "^1.1.14",
     "@radix-ui/react-icons": "^1.3.2",
     "@radix-ui/react-label": "^2.1.7",
@@ -50,7 +49,6 @@
     "@types/react-dom": "^19",
     "prettier": "^3.6.0",
     "prettier-plugin-tailwindcss": "^0.6.13",
-    "prisma": "^6.10.1",
     "typescript": "^5"
   }
 }

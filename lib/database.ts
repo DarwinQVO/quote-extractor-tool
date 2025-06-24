@@ -1,41 +1,20 @@
-import { prisma } from './prisma'
+import { supabase, transformSourceFromDB, transformSourceToDB, transformQuoteFromDB, transformQuoteToDB, DatabaseSource, DatabaseQuote } from './supabase'
 import { VideoSource, Quote, Transcript } from './types'
 
 // Sources
 export async function saveSources(sources: VideoSource[]) {
   try {
-    for (const source of sources) {
-      await prisma.source.upsert({
-        where: { id: source.id },
-        update: {
-          url: source.url,
-          title: source.title,
-          channel: source.channel,
-          duration: source.duration,
-          thumbnail: source.thumbnail,
-          description: source.description,
-          uploadDate: source.uploadDate,
-          viewCount: source.viewCount,
-          status: source.status,
-          error: source.error,
-        },
-        create: {
-          id: source.id,
-          url: source.url,
-          title: source.title,
-          channel: source.channel,
-          duration: source.duration,
-          thumbnail: source.thumbnail,
-          description: source.description,
-          uploadDate: source.uploadDate,
-          viewCount: source.viewCount,
-          status: source.status,
-          error: source.error,
-          addedAt: source.addedAt,
-        }
-      });
-    }
-    console.log('✅ Sources saved to database')
+    const dbSources = sources.map(transformSourceToDB)
+    
+    const { error } = await supabase
+      .from('sources')
+      .upsert(dbSources, { 
+        onConflict: 'id',
+        ignoreDuplicates: false 
+      })
+    
+    if (error) throw error
+    console.log('✅ Sources saved to Supabase')
   } catch (error) {
     console.error('❌ Error saving sources:', error)
   }
@@ -43,24 +22,14 @@ export async function saveSources(sources: VideoSource[]) {
 
 export async function loadSources(): Promise<VideoSource[]> {
   try {
-    const sources = await prisma.source.findMany({
-      orderBy: { addedAt: 'desc' }
-    });
+    const { data, error } = await supabase
+      .from('sources')
+      .select('*')
+      .order('created_at', { ascending: false })
     
-    return sources.map(source => ({
-      id: source.id,
-      url: source.url,
-      title: source.title,
-      channel: source.channel,
-      duration: source.duration,
-      thumbnail: source.thumbnail,
-      description: source.description || undefined,
-      uploadDate: source.uploadDate || undefined,
-      viewCount: source.viewCount || undefined,
-      status: source.status as VideoSource['status'],
-      error: source.error || undefined,
-      addedAt: source.addedAt,
-    }));
+    if (error) throw error
+    
+    return data?.map(item => transformSourceFromDB(item as unknown as DatabaseSource)) || []
   } catch (error) {
     console.error('❌ Error loading sources:', error)
     return []
@@ -69,36 +38,17 @@ export async function loadSources(): Promise<VideoSource[]> {
 
 export async function saveSource(source: VideoSource) {
   try {
-    await prisma.source.upsert({
-      where: { id: source.id },
-      update: {
-        url: source.url,
-        title: source.title,
-        channel: source.channel,
-        duration: source.duration,
-        thumbnail: source.thumbnail,
-        description: source.description,
-        uploadDate: source.uploadDate,
-        viewCount: source.viewCount,
-        status: source.status,
-        error: source.error,
-      },
-      create: {
-        id: source.id,
-        url: source.url,
-        title: source.title,
-        channel: source.channel,
-        duration: source.duration,
-        thumbnail: source.thumbnail,
-        description: source.description,
-        uploadDate: source.uploadDate,
-        viewCount: source.viewCount,
-        status: source.status,
-        error: source.error,
-        addedAt: source.addedAt,
-      }
-    });
-    console.log('✅ Source saved to database:', source.id)
+    const dbSource = transformSourceToDB(source)
+    
+    const { error } = await supabase
+      .from('sources')
+      .upsert(dbSource, { 
+        onConflict: 'id',
+        ignoreDuplicates: false 
+      })
+    
+    if (error) throw error
+    console.log('✅ Source saved to Supabase:', source.id)
   } catch (error) {
     console.error('❌ Error saving source:', error)
   }
@@ -106,14 +56,18 @@ export async function saveSource(source: VideoSource) {
 
 export async function deleteSource(sourceId: string) {
   try {
-    // Delete related data first (Prisma will handle cascade)
-    await prisma.quote.deleteMany({ where: { sourceId } });
-    await prisma.transcript.deleteMany({ where: { sourceId } });
+    // Delete related data first
+    await supabase.from('quotes').delete().eq('source_id', sourceId)
+    await supabase.from('transcripts').delete().eq('source_id', sourceId)
     
     // Delete source
-    await prisma.source.delete({ where: { id: sourceId } });
+    const { error } = await supabase
+      .from('sources')
+      .delete()
+      .eq('id', sourceId)
     
-    console.log('✅ Source deleted from database:', sourceId)
+    if (error) throw error
+    console.log('✅ Source deleted from Supabase:', sourceId)
   } catch (error) {
     console.error('❌ Error deleting source:', error)
   }
@@ -122,34 +76,17 @@ export async function deleteSource(sourceId: string) {
 // Quotes
 export async function saveQuotes(quotes: Quote[]) {
   try {
-    for (const quote of quotes) {
-      await prisma.quote.upsert({
-        where: { id: quote.id },
-        update: {
-          sourceId: quote.sourceId,
-          text: quote.text,
-          speaker: quote.speaker,
-          startTime: quote.startTime,
-          endTime: quote.endTime,
-          citation: quote.citation,
-          timestampLink: quote.timestampLink,
-          exported: quote.exported || false,
-        },
-        create: {
-          id: quote.id,
-          sourceId: quote.sourceId,
-          text: quote.text,
-          speaker: quote.speaker,
-          startTime: quote.startTime,
-          endTime: quote.endTime,
-          citation: quote.citation,
-          timestampLink: quote.timestampLink,
-          exported: quote.exported || false,
-          createdAt: quote.createdAt,
-        }
-      });
-    }
-    console.log('✅ Quotes saved to database')
+    const dbQuotes = quotes.map(transformQuoteToDB)
+    
+    const { error } = await supabase
+      .from('quotes')
+      .upsert(dbQuotes, { 
+        onConflict: 'id',
+        ignoreDuplicates: false 
+      })
+    
+    if (error) throw error
+    console.log('✅ Quotes saved to Supabase')
   } catch (error) {
     console.error('❌ Error saving quotes:', error)
   }
@@ -157,22 +94,14 @@ export async function saveQuotes(quotes: Quote[]) {
 
 export async function loadQuotes(): Promise<Quote[]> {
   try {
-    const quotes = await prisma.quote.findMany({
-      orderBy: { createdAt: 'desc' }
-    });
+    const { data, error } = await supabase
+      .from('quotes')
+      .select('*')
+      .order('created_at', { ascending: false })
     
-    return quotes.map(quote => ({
-      id: quote.id,
-      sourceId: quote.sourceId,
-      text: quote.text,
-      speaker: quote.speaker,
-      startTime: quote.startTime,
-      endTime: quote.endTime,
-      citation: quote.citation,
-      timestampLink: quote.timestampLink,
-      exported: quote.exported,
-      createdAt: quote.createdAt,
-    }));
+    if (error) throw error
+    
+    return data?.map(item => transformQuoteFromDB(item as unknown as DatabaseQuote)) || []
   } catch (error) {
     console.error('❌ Error loading quotes:', error)
     return []
@@ -181,32 +110,17 @@ export async function loadQuotes(): Promise<Quote[]> {
 
 export async function saveQuote(quote: Quote) {
   try {
-    await prisma.quote.upsert({
-      where: { id: quote.id },
-      update: {
-        sourceId: quote.sourceId,
-        text: quote.text,
-        speaker: quote.speaker,
-        startTime: quote.startTime,
-        endTime: quote.endTime,
-        citation: quote.citation,
-        timestampLink: quote.timestampLink,
-        exported: quote.exported || false,
-      },
-      create: {
-        id: quote.id,
-        sourceId: quote.sourceId,
-        text: quote.text,
-        speaker: quote.speaker,
-        startTime: quote.startTime,
-        endTime: quote.endTime,
-        citation: quote.citation,
-        timestampLink: quote.timestampLink,
-        exported: quote.exported || false,
-        createdAt: quote.createdAt,
-      }
-    });
-    console.log('✅ Quote saved to database:', quote.id)
+    const dbQuote = transformQuoteToDB(quote)
+    
+    const { error } = await supabase
+      .from('quotes')
+      .upsert(dbQuote, { 
+        onConflict: 'id',
+        ignoreDuplicates: false 
+      })
+    
+    if (error) throw error
+    console.log('✅ Quote saved to Supabase:', quote.id)
   } catch (error) {
     console.error('❌ Error saving quote:', error)
   }
@@ -214,8 +128,13 @@ export async function saveQuote(quote: Quote) {
 
 export async function deleteQuote(quoteId: string) {
   try {
-    await prisma.quote.delete({ where: { id: quoteId } });
-    console.log('✅ Quote deleted from database:', quoteId)
+    const { error } = await supabase
+      .from('quotes')
+      .delete()
+      .eq('id', quoteId)
+    
+    if (error) throw error
+    console.log('✅ Quote deleted from Supabase:', quoteId)
   } catch (error) {
     console.error('❌ Error deleting quote:', error)
   }
@@ -224,21 +143,21 @@ export async function deleteQuote(quoteId: string) {
 // Transcripts
 export async function saveTranscript(sourceId: string, transcript: Transcript) {
   try {
-    await prisma.transcript.upsert({
-      where: { sourceId },
-      update: {
+    const { error } = await supabase
+      .from('transcripts')
+      .upsert({
+        id: `transcript_${sourceId}`,
+        source_id: sourceId,
         segments: transcript.segments,
         words: transcript.words || [],
         speakers: transcript.speakers || [],
-      },
-      create: {
-        sourceId,
-        segments: transcript.segments,
-        words: transcript.words || [],
-        speakers: transcript.speakers || [],
-      }
-    });
-    console.log('✅ Transcript saved to database:', sourceId)
+      }, { 
+        onConflict: 'source_id',
+        ignoreDuplicates: false 
+      })
+    
+    if (error) throw error
+    console.log('✅ Transcript saved to Supabase:', sourceId)
   } catch (error) {
     console.error('❌ Error saving transcript:', error)
   }
@@ -246,18 +165,26 @@ export async function saveTranscript(sourceId: string, transcript: Transcript) {
 
 export async function loadTranscript(sourceId: string): Promise<Transcript | null> {
   try {
-    const transcript = await prisma.transcript.findUnique({
-      where: { sourceId }
-    });
+    const { data, error } = await supabase
+      .from('transcripts')
+      .select('*')
+      .eq('source_id', sourceId)
+      .single()
     
-    if (!transcript) return null;
+    if (error) {
+      if (error.code === 'PGRST116') {
+        // No transcript found
+        return null
+      }
+      throw error
+    }
     
     return {
-      sourceId: transcript.sourceId,
-      segments: transcript.segments as any[] || [],
-      words: transcript.words as any[] || [],
-      speakers: transcript.speakers as any[] || [],
-    };
+      sourceId: data.source_id,
+      segments: data.segments || [],
+      words: data.words || [],
+      speakers: data.speakers || [],
+    }
   } catch (error) {
     console.error('❌ Error loading transcript:', error)
     return null
@@ -266,20 +193,24 @@ export async function loadTranscript(sourceId: string): Promise<Transcript | nul
 
 export async function loadAllTranscripts(): Promise<Map<string, Transcript>> {
   try {
-    const transcripts = await prisma.transcript.findMany();
+    const { data, error } = await supabase
+      .from('transcripts')
+      .select('*')
     
-    const transcriptsMap = new Map<string, Transcript>();
+    if (error) throw error
     
-    transcripts.forEach(transcript => {
-      transcriptsMap.set(transcript.sourceId, {
-        sourceId: transcript.sourceId,
-        segments: transcript.segments as any[] || [],
-        words: transcript.words as any[] || [],
-        speakers: transcript.speakers as any[] || [],
-      });
-    });
+    const transcriptsMap = new Map<string, Transcript>()
     
-    return transcriptsMap;
+    data?.forEach(transcript => {
+      transcriptsMap.set(transcript.source_id, {
+        sourceId: transcript.source_id,
+        segments: transcript.segments || [],
+        words: transcript.words || [],
+        speakers: transcript.speakers || [],
+      })
+    })
+    
+    return transcriptsMap
   } catch (error) {
     console.error('❌ Error loading transcripts:', error)
     return new Map()

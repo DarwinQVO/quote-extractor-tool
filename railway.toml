@@ -6,8 +6,3 @@ restartPolicyType = "always"
 healthcheckPath = "/"
 healthcheckTimeout = 100
 numReplicas = 1
-startCommand = "npm run start:production"
-
-# Mount a persistent volume for shared SQLite database
-[[deploy.volumes]]
-mountPath = "/app/data"

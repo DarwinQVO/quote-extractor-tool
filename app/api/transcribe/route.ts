@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { OpenAI } from 'openai';
-import { getPrismaClient, ensureDatabaseTables } from '@/lib/prisma';
+import { saveTranscript, loadTranscript } from '@/lib/database';
 import { cleanSegments, performBasicDiarization } from '@/lib/cleanTranscript';
 import { Segment } from '@/lib/types';
 import YTDlpWrap from 'yt-dlp-wrap';
@@ -101,40 +101,20 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
     
-    console.log('🗄️ Ensuring database tables exist...');
-    try {
-      await ensureDatabaseTables();
-      console.log('✅ Database tables verified');
-    } catch (dbError) {
-      console.error('❌ Database initialization failed:', dbError);
-      return NextResponse.json({
-        error: 'Database initialization error',
-        details: dbError instanceof Error ? dbError.message : 'Unknown database error'
-      }, { status: 500 });
-    }
-    
-    console.log('🗄️ Checking for existing transcript...');
-    // Get the properly initialized Prisma client
-    const prisma = getPrismaClient();
+    console.log('🗄️ Checking for existing transcript in Supabase...');
     
     // Check if transcript already exists and is recent
-    const existingTranscript = await prisma.transcript.findUnique({
-      where: { sourceId },
-    });
+    const existingTranscript = await loadTranscript(sourceId);
     
-    if (existingTranscript) {
-      const hoursSinceUpdate = (Date.now() - existingTranscript.updatedAt.getTime()) / (1000 * 60 * 60);
-      if (hoursSinceUpdate < 24 && existingTranscript.segments) {
-        // Return cached transcript
-        const segments: Segment[] = (existingTranscript.segments as any[]).map(s => ({
-          speaker: s.speaker,
-          start: s.start,
-          end: s.end,
-          text: s.text,
-        }));
-        
-        return NextResponse.json({ segments, cached: true });
-      }
+    if (existingTranscript && existingTranscript.segments.length > 0) {
+      console.log('📚 Found existing transcript with', existingTranscript.segments.length, 'segments');
+      // Return cached transcript if it exists
+      return NextResponse.json({ 
+        segments: existingTranscript.segments,
+        words: existingTranscript.words,
+        speakers: existingTranscript.speakers,
+        cached: true 
+      });
     }
     
     setProgress(sourceId, 5);
@@ -544,32 +524,16 @@ export async function POST(request: NextRequest) {
       // Get unique speakers for management
       const uniqueSpeakers = [...new Set(segments.map(seg => seg.speaker))];
       
-      // Save to database with JSON fields
-      if (existingTranscript) {
-        await prisma.transcript.update({
-          where: { id: existingTranscript.id },
-          data: {
-            segments: segments,
-            words: words,
-            speakers: uniqueSpeakers.map(speakerName => ({
-              originalName: speakerName,
-              customName: speakerName,
-            })),
-          },
-        });
-      } else {
-        await prisma.transcript.create({
-          data: {
-            sourceId,
-            segments: segments,
-            words: words,
-            speakers: uniqueSpeakers.map(speakerName => ({
-              originalName: speakerName,
-              customName: speakerName,
-            })),
-          },
-        });
-      }
+      // Save to Supabase
+      await saveTranscript(sourceId, {
+        sourceId,
+        segments,
+        words,
+        speakers: uniqueSpeakers.map(speakerName => ({
+          originalName: speakerName,
+          customName: speakerName,
+        })),
+      });
       
       setProgress(sourceId, 100);
       setTimeout(() => deleteProgress(sourceId), 5000);

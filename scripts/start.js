@@ -32,25 +32,6 @@ function log(message, type = 'info') {
 function checkEnvironmentVariables() {
   log('Checking environment variables...', 'info');
   
-  // Ensure data directory exists for SQLite
-  const fs = require('fs');
-  const dataDir = '/app/data';
-  
-  try {
-    if (!fs.existsSync(dataDir)) {
-      log('Creating data directory for shared database...', 'info');
-      fs.mkdirSync(dataDir, { recursive: true });
-    }
-  } catch (error) {
-    log(`Failed to create data directory: ${error.message}`, 'warning');
-  }
-  
-  // Set DATABASE_URL if not provided
-  if (!process.env.DATABASE_URL) {
-    process.env.DATABASE_URL = 'file:/app/data/shared.db';
-    log('Using shared SQLite database at /app/data/shared.db', 'info');
-  }
-  
   const required = {
     OPENAI_API_KEY: {
       check: (val) => val && val.startsWith('sk-') && val.length > 20,
@@ -59,11 +40,6 @@ function checkEnvironmentVariables() {
   };
   
   const optional = {
-    DATABASE_URL: {
-      check: (val) => !val || val.length > 0,
-      error: 'Database URL should be configured',
-      default: 'file:/app/data/shared.db',
-    },
     NEXT_PUBLIC_SUPABASE_URL: {
       check: (val) => !val || val.includes('supabase.co'),
       error: 'Must be a valid Supabase URL',
@@ -121,47 +97,31 @@ function checkEnvironmentVariables() {
 function startApplication() {
   log('Starting Next.js application...', 'info');
   
-  // First initialize the database
-  log('Initializing database...', 'info');
-  const initDb = spawn('node', ['scripts/init-db.js'], {
+  // Build the application
+  log('Building application...', 'info');
+  const build = spawn('npm', ['run', 'build'], {
     stdio: 'inherit',
     env: process.env,
   });
   
-  initDb.on('close', (dbCode) => {
-    if (dbCode !== 0) {
-      log(`Database initialization failed with code ${dbCode}`, 'error');
+  build.on('close', (code) => {
+    if (code !== 0) {
+      log(`Build failed with code ${code}`, 'error');
       process.exit(1);
     }
     
-    log('Database initialized successfully!', 'success');
+    log('Build completed successfully!', 'success');
+    log('Starting server...', 'info');
     
-    // Then build the application
-    log('Building application...', 'info');
-    const build = spawn('npm', ['run', 'build'], {
+    // Then start the server
+    const start = spawn('npm', ['run', 'start'], {
       stdio: 'inherit',
       env: process.env,
     });
     
-    build.on('close', (code) => {
-      if (code !== 0) {
-        log(`Build failed with code ${code}`, 'error');
-        process.exit(1);
-      }
-      
-      log('Build completed successfully!', 'success');
-      log('Starting server...', 'info');
-      
-      // Then start the server
-      const start = spawn('npm', ['run', 'start'], {
-        stdio: 'inherit',
-        env: process.env,
-      });
-      
-      start.on('close', (code) => {
-        log(`Server exited with code ${code}`, code === 0 ? 'info' : 'error');
-        process.exit(code);
-      });
+    start.on('close', (code) => {
+      log(`Server exited with code ${code}`, code === 0 ? 'info' : 'error');
+      process.exit(code);
     });
   });
 }

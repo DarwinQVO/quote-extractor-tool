@@ -116,10 +116,8 @@ export const useStore = create<AppState>((set, get) => ({
       saveToStorage('quote-extractor-sources', newState.sources);
       saveToStorage('quote-extractor-activeSourceId', newState.activeSourceId);
       
-      // Sync to database if online
-      if (state.isOnline) {
-        saveSource(newSource).catch(console.error);
-      }
+      // Always sync to database
+      saveSource(newSource).catch(console.error);
       
       return newState;
     });
@@ -133,6 +131,15 @@ export const useStore = create<AppState>((set, get) => ({
         source.id === id ? { ...source, ...updates } : source
       );
       saveToStorage('quote-extractor-sources', newSources);
+      
+      // Sync updated source to database
+      const updatedSource = newSources.find(s => s.id === id);
+      if (updatedSource) {
+        import('./database').then(({ saveSource }) => {
+          saveSource(updatedSource).catch(console.error);
+        });
+      }
+      
       return { sources: newSources };
     }),
     
@@ -149,12 +156,10 @@ export const useStore = create<AppState>((set, get) => ({
       saveToStorage('quote-extractor-activeSourceId', newActiveSourceId);
       saveToStorage('quote-extractor-transcripts', mapToArray(newTranscripts));
       
-      // Sync removal to database if online
-      if (state.isOnline) {
-        import('./database').then(({ deleteSource }) => {
-          deleteSource(id).catch(console.error);
-        });
-      }
+      // Always sync removal to database
+      import('./database').then(({ deleteSource }) => {
+        deleteSource(id).catch(console.error);
+      });
       
       return {
         sources: newSources,
@@ -179,6 +184,12 @@ export const useStore = create<AppState>((set, get) => ({
     set((state) => {
       const newQuotes = [...state.quotes, quote];
       saveToStorage('quote-extractor-quotes', newQuotes);
+      
+      // Sync to database
+      import('./database').then(({ saveQuote }) => {
+        saveQuote(quote).catch(console.error);
+      });
+      
       return { quotes: newQuotes };
     });
   },

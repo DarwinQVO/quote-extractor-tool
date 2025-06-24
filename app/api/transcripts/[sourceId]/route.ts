@@ -1,59 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { Segment } from '@/lib/types';
+import { loadTranscript } from '@/lib/database';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ sourceId: string }> }
+  { params }: { params: { sourceId: string } }
 ) {
-  const { sourceId } = await params;
-  
   try {
-    const transcript = await prisma.transcript.findUnique({
-      where: { sourceId },
-      include: { 
-        segments: true,
-        words: true,
-        speakers: true,
-      },
-    });
+    const sourceId = params.sourceId;
+    
+    if (!sourceId) {
+      return NextResponse.json({ error: 'Source ID is required' }, { status: 400 });
+    }
+    
+    const transcript = await loadTranscript(sourceId);
     
     if (!transcript) {
       return NextResponse.json({ error: 'Transcript not found' }, { status: 404 });
     }
     
-    const segments: Segment[] = transcript.segments.map(s => ({
-      speaker: s.speaker,
-      start: s.start,
-      end: s.end,
-      text: s.text,
-    }));
-
-    const words = transcript.words?.map(w => ({
-      text: w.text,
-      start: w.start,
-      end: w.end,
-      speaker: w.speaker,
-    })) || [];
-
-    const speakers = transcript.speakers?.map(s => ({
-      id: s.id,
-      originalName: s.originalName,
-      customName: s.customName,
-    })) || [];
-    
-    return NextResponse.json({ 
-      segments,
-      words,
-      speakers,
-      createdAt: transcript.createdAt,
-      updatedAt: transcript.updatedAt,
-    });
+    return NextResponse.json(transcript);
   } catch (error) {
-    console.error('Error fetching transcript:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch transcript' },
-      { status: 500 }
-    );
+    console.error('Error loading transcript:', error);
+    return NextResponse.json({ 
+      error: 'Failed to load transcript',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
   }
 }

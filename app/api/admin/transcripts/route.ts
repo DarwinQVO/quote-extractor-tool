@@ -1,61 +1,52 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPrismaClient, ensureDatabaseTables } from '@/lib/prisma';
+import { supabase } from '@/lib/supabase';
 
 export async function GET() {
   try {
-    console.log('🔍 Checking database transcripts...');
+    console.log('🔍 Checking Supabase transcripts...');
     
-    // Ensure database tables exist
-    await ensureDatabaseTables();
-    const prisma = getPrismaClient();
+    // Get all transcripts from Supabase
+    const { data: transcripts, error } = await supabase
+      .from('transcripts')
+      .select('*')
+      .order('created_at', { ascending: false });
     
-    // Get all transcripts with their segments count
-    const transcripts = await prisma.transcript.findMany({
-      include: {
-        segments: {
-          select: {
-            id: true,
-            speaker: true,
-            start: true,
-            end: true,
-            text: true,
-          },
-        },
-        words: {
-          select: {
-            id: true,
-          },
-        },
-        speakers: {
-          select: {
-            id: true,
-            originalName: true,
-            customName: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
+    if (error) throw error;
+    
+    // Get sources for additional info
+    const { data: sources, error: sourcesError } = await supabase
+      .from('sources')
+      .select('id, title, channel');
+    
+    if (sourcesError) throw sourcesError;
+    
+    const sourcesMap = new Map(sources?.map(s => [s.id, s]) || []);
+    
+    const transcriptSummary = (transcripts || []).map(transcript => {
+      const source = sourcesMap.get(transcript.source_id);
+      const segments = transcript.segments || [];
+      const speakers = transcript.speakers || [];
+      
+      return {
+        id: transcript.id,
+        sourceId: transcript.source_id,
+        sourceTitle: source?.title || 'Unknown',
+        sourceChannel: source?.channel || 'Unknown',
+        createdAt: transcript.created_at,
+        updatedAt: transcript.updated_at,
+        segmentsCount: segments.length,
+        wordsCount: (transcript.words || []).length,
+        speakersCount: speakers.length,
+        speakers: speakers.map((s: any) => s.originalName || s.customName || 'Unknown'),
+        firstSegment: segments[0]?.text?.substring(0, 100) + '...' || 'No segments',
+      };
     });
     
-    const transcriptSummary = transcripts.map(transcript => ({
-      id: transcript.id,
-      sourceId: transcript.sourceId,
-      createdAt: transcript.createdAt,
-      updatedAt: transcript.updatedAt,
-      segmentsCount: transcript.segments.length,
-      wordsCount: transcript.words.length,
-      speakersCount: transcript.speakers.length,
-      speakers: transcript.speakers.map(s => s.originalName),
-      firstSegment: transcript.segments[0]?.text?.substring(0, 100) + '...' || 'No segments',
-    }));
-    
-    console.log(`✅ Found ${transcripts.length} transcripts in database`);
+    console.log(`✅ Found ${transcripts?.length || 0} transcripts in Supabase`);
     
     return NextResponse.json({
       success: true,
-      count: transcripts.length,
+      count: transcripts?.length || 0,
       transcripts: transcriptSummary,
     });
     
@@ -83,29 +74,32 @@ export async function DELETE(request: NextRequest) {
     
     console.log(`🗑️ Deleting transcript: ${transcriptId || sourceId}`);
     
-    // Ensure database tables exist
-    await ensureDatabaseTables();
-    const prisma = getPrismaClient();
-    
-    // Delete transcript (cascade will handle related records)
-    let deletedTranscript;
+    let result;
     if (transcriptId) {
-      deletedTranscript = await prisma.transcript.delete({
-        where: { id: transcriptId },
-      });
+      result = await supabase
+        .from('transcripts')
+        .delete()
+        .eq('id', transcriptId)
+        .select();
     } else {
-      deletedTranscript = await prisma.transcript.delete({
-        where: { sourceId: sourceId! },
-      });
+      result = await supabase
+        .from('transcripts')
+        .delete()
+        .eq('source_id', sourceId!)
+        .select();
     }
     
-    console.log(`✅ Deleted transcript: ${deletedTranscript.id}`);
+    if (result.error) throw result.error;
+    
+    const deleted = result.data?.[0];
+    
+    console.log(`✅ Deleted transcript: ${deleted?.id || 'unknown'}`);
     
     return NextResponse.json({
       success: true,
       message: `Transcript deleted successfully`,
-      deletedId: deletedTranscript.id,
-      deletedSourceId: deletedTranscript.sourceId,
+      deletedId: deleted?.id,
+      deletedSourceId: deleted?.source_id,
     });
     
   } catch (error) {
