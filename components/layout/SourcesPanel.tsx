@@ -109,9 +109,9 @@ export function SourcesPanel() {
           sources.map((source) => (
             <div
               key={source.id}
-              className={`relative p-4 rounded-xl border transition-all cursor-pointer ${
+              className={`relative group p-4 rounded-xl border transition-all cursor-pointer hover:shadow-md ${
                 activeSourceId === source.id
-                  ? 'border-primary bg-primary/5'
+                  ? 'border-primary bg-primary/5 shadow-sm'
                   : 'border-border hover:border-primary/50 hover:bg-muted/50'
               }`}
               onClick={() => setActiveSource(source.id)}
@@ -123,31 +123,62 @@ export function SourcesPanel() {
                     removeSource(source.id);
                   }
                 }}
-                className="absolute top-2 right-2 p-1 rounded-lg hover:bg-background/80 transition-colors"
+                className="absolute top-3 right-3 p-1.5 rounded-lg hover:bg-background/80 transition-colors opacity-0 group-hover:opacity-100"
                 title="Eliminar video y transcript"
               >
                 <X className="w-4 h-4" />
               </button>
               
-              <div className="flex items-start gap-3">
-                <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+              <div className="flex items-start gap-4">
+                <div className="relative w-16 h-12 rounded-lg bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center flex-shrink-0 shadow-sm">
                   {source.status === 'fetching-metadata' ? (
-                    <Loader2 className="w-6 h-6 animate-spin" />
+                    <Loader2 className="w-5 h-5 animate-spin text-white" />
                   ) : (
-                    <Youtube className="w-6 h-6" />
+                    <Youtube className="w-6 h-6 text-white" />
+                  )}
+                  {source.thumbnail && (
+                    <img 
+                      src={source.thumbnail} 
+                      alt={source.title}
+                      className="absolute inset-0 w-full h-full object-cover rounded-lg"
+                    />
                   )}
                 </div>
                 
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-medium text-sm truncate pr-6">{source.title}</h3>
-                  <p className="text-xs text-muted-foreground truncate">{source.channel}</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {source.status === 'ready' ? 'Ready' : 
-                     source.status === 'error' ? 'Error' :
-                     source.status === 'transcribing' ? 'Transcribing...' :
-                     source.status === 'fetching-metadata' ? 'Loading...' : 
-                     'Pending'}
+                <div className="flex-1 min-w-0 space-y-1">
+                  <h3 className="font-semibold text-sm leading-tight truncate pr-8">{source.title}</h3>
+                  <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                    <Youtube className="w-3 h-3" />
+                    {source.channel}
                   </p>
+                  
+                  <div className="flex items-center justify-between text-xs">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      source.status === 'ready' ? 'bg-green-100 text-green-700' :
+                      source.status === 'error' ? 'bg-red-100 text-red-700' :
+                      source.status === 'transcribing' ? 'bg-blue-100 text-blue-700' :
+                      source.status === 'fetching-metadata' ? 'bg-yellow-100 text-yellow-700' :
+                      'bg-gray-100 text-gray-700'
+                    }`}>
+                      {source.status === 'ready' ? 'Ready' : 
+                       source.status === 'error' ? 'Error' :
+                       source.status === 'transcribing' ? 'Transcribing...' :
+                       source.status === 'fetching-metadata' ? 'Loading...' : 
+                       'Pending'}
+                    </span>
+                    
+                    {source.duration > 0 && (
+                      <span className="text-muted-foreground">
+                        {Math.floor(source.duration / 60)}:{(source.duration % 60).toString().padStart(2, '0')}
+                      </span>
+                    )}
+                  </div>
+                  
+                  {source.viewCount && (
+                    <p className="text-xs text-muted-foreground">
+                      {source.viewCount.toLocaleString()} views
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

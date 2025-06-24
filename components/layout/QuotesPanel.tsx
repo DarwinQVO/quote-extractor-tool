@@ -214,12 +214,8 @@ export function QuotesPanel() {
                 <CardContent className="p-4">
                   <div className="space-y-3">
                     <blockquote className="text-sm leading-relaxed italic border-l-4 border-primary pl-4">
-                      &ldquo;{quote.text}&rdquo;
-                    </blockquote>
-                    
-                    {/* Citation as clickable link */}
-                    <div className="flex items-center justify-between">
-                      <div className="text-xs text-muted-foreground">
+                      &ldquo;{quote.text}&rdquo;{' '}
+                      <span className="text-xs text-muted-foreground not-italic">
                         <a 
                           href={quote.timestampLink}
                           target="_blank"
@@ -228,9 +224,11 @@ export function QuotesPanel() {
                         >
                           {quote.citation}
                         </a>
-                      </div>
-                      
-                      {/* Action buttons on hover */}
+                      </span>
+                    </blockquote>
+                    
+                    {/* Action buttons */}
+                    <div className="flex items-center justify-end">
                       <div className="flex items-center gap-1">
                         <Button
                           variant="ghost"
