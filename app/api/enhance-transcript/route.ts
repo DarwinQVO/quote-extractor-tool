@@ -23,7 +23,7 @@ function getOpenAIClient() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { text, context } = await request.json();
+    const { text, context, customPrompt } = await request.json();
     
     if (!text) {
       return NextResponse.json(
@@ -34,8 +34,8 @@ export async function POST(request: NextRequest) {
 
     const openai = getOpenAIClient();
     
-    // Create context-aware prompt
-    const systemPrompt = `You are an expert transcript enhancer. Your job is to improve transcript text quality while maintaining the exact meaning and speaker intent.
+    // Use custom prompt if provided, otherwise use default
+    const defaultPrompt = `You are an expert transcript enhancer. Your job is to improve transcript text quality while maintaining the exact meaning and speaker intent.
 
 APPLY THESE RULES EXACTLY:
 1. Fix company/person names using context knowledge (e.g., if they mention "WAZE" but transcript says "ways", correct it)
@@ -46,13 +46,18 @@ APPLY THESE RULES EXACTLY:
 6. Keep the natural speaking flow and tone
 7. Don't add words that weren't spoken
 
-${context ? `CONTEXT:
+Return only the enhanced text, no explanations.`;
+
+    let systemPrompt = customPrompt || defaultPrompt;
+    
+    // Add context information if available
+    if (context) {
+      systemPrompt += `\n\nCONTEXT:
 - Video: ${context.title}
 - Channel: ${context.channel}
 - Speakers: ${context.speakers?.join(', ') || 'Unknown'}
-- Topic: ${context.topic || 'General'}` : ''}
-
-Return only the enhanced text, no explanations.`;
+- Topic: ${context.topic || 'General'}`;
+    }
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',

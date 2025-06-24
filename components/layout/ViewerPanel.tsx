@@ -12,6 +12,8 @@ import { toast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { ChevronDown, ChevronRight } from "lucide-react";
 
 export function ViewerPanel() {
   const playerRef = useRef<ReactPlayer>(null);
@@ -22,6 +24,32 @@ export function ViewerPanel() {
     enableAIEnhancement: false,
     autoEnhance: false,
   });
+  const [showPrompt, setShowPrompt] = useState(false);
+  const [customPrompt, setCustomPrompt] = useState(`You are an expert transcript enhancer. Your job is to improve transcript text quality while maintaining the exact meaning and speaker intent.
+
+APPLY THESE RULES EXACTLY:
+1. Fix company/person names using context knowledge (e.g., if they mention "WAZE" but transcript says "ways", correct it)
+2. Identify missed percentages (e.g., "fifty five" → "55%")
+3. Capitalize first letter of quotes within quotes
+4. Fix grammar and punctuation intelligently
+5. Maintain all factual information exactly - NEVER change numbers, dates, or specific details
+6. Keep the natural speaking flow and tone
+7. Don't add words that weren't spoken
+
+Return only the enhanced text, no explanations.`);
+
+  // Load saved prompt from localStorage
+  useEffect(() => {
+    const savedPrompt = localStorage.getItem('transcript-enhancement-prompt');
+    if (savedPrompt) {
+      setCustomPrompt(savedPrompt);
+    }
+  }, []);
+
+  // Save prompt to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('transcript-enhancement-prompt', customPrompt);
+  }, [customPrompt]);
   
   const { 
     activeSourceId, 
@@ -342,29 +370,56 @@ export function ViewerPanel() {
                 </div>
                 
                 {enhancementSettings.enableAIEnhancement && (
-                  <div className="flex items-center justify-between pl-4">
-                    <div className="space-y-1">
-                      <Label className="text-sm">Auto-enhance new transcripts</Label>
-                      <p className="text-xs text-muted-foreground">
-                        Automatically enhance transcripts after processing
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setEnhancementSettings(prev => ({
-                        ...prev,
-                        autoEnhance: !prev.autoEnhance
-                      }))}
-                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                        enhancementSettings.autoEnhance ? 'bg-primary' : 'bg-muted'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
-                          enhancementSettings.autoEnhance ? 'translate-x-5' : 'translate-x-1'
+                  <>
+                    <div className="flex items-center justify-between pl-4">
+                      <div className="space-y-1">
+                        <Label className="text-sm">Auto-enhance new transcripts</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Automatically enhance transcripts after processing
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setEnhancementSettings(prev => ({
+                          ...prev,
+                          autoEnhance: !prev.autoEnhance
+                        }))}
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                          enhancementSettings.autoEnhance ? 'bg-primary' : 'bg-muted'
                         }`}
-                      />
-                    </button>
-                  </div>
+                      >
+                        <span
+                          className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                            enhancementSettings.autoEnhance ? 'translate-x-5' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                    
+                    {/* Expandable Prompt Editor */}
+                    <div className="pl-4">
+                      <button
+                        onClick={() => setShowPrompt(!showPrompt)}
+                        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {showPrompt ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                        Customize AI Prompt
+                      </button>
+                      
+                      {showPrompt && (
+                        <div className="mt-2 space-y-2">
+                          <Textarea
+                            value={customPrompt}
+                            onChange={(e) => setCustomPrompt(e.target.value)}
+                            className="min-h-[200px] text-xs font-mono"
+                            placeholder="Enter your custom prompt..."
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            This prompt guides the AI enhancement. Modify to fit your specific needs.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
             </div>

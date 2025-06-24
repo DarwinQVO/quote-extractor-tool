@@ -3,7 +3,6 @@
 import { SourcesPanel } from "@/components/layout/SourcesPanel";
 import { QuotesPanel } from "@/components/layout/QuotesPanel";
 import { ViewerPanel } from "@/components/layout/ViewerPanel";
-import { SyncIndicator } from "@/components/SyncIndicator";
 import { useSync } from "@/hooks/useSync";
 
 export default function Home() {
@@ -22,9 +21,6 @@ export default function Home() {
           <ViewerPanel />
         </div>
       </div>
-      
-      {/* Sync indicator in top-right corner */}
-      <SyncIndicator />
     </main>
   );
 }
