@@ -1,11 +1,8 @@
 "use client";
 
 import { useState, useRef, useMemo, useEffect } from "react";
-import { Clock, Edit3, Check, X } from "lucide-react";
+import { Clock } from "lucide-react";
 import { Segment } from "@/lib/types";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { toast } from "@/hooks/use-toast";
 
 interface Word {
   text: string;
@@ -33,8 +30,7 @@ export function WordLevelTranscript({
 }: WordLevelTranscriptProps) {
   const [selectedWords, setSelectedWords] = useState<number[]>([]);
   const [isSelecting, setIsSelecting] = useState(false);
-  const [editingSpeaker, setEditingSpeaker] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState("");
+  // Speaker editing removed - use Speaker Manager instead
   const [mouseDownTime, setMouseDownTime] = useState(0);
   const [mouseDownPos, setMouseDownPos] = useState({ x: 0, y: 0 });
   const [hasMoved, setHasMoved] = useState(false);
@@ -165,70 +161,7 @@ export function WordLevelTranscript({
     setSelectedWords([]);
   };
 
-  // Speaker editing functions
-  const handleSpeakerEdit = (speaker: string) => {
-    setEditingSpeaker(speaker);
-    setEditValue(speaker);
-  };
-
-  const handleSpeakerSave = () => {
-    if (!editingSpeaker || !editValue.trim()) {
-      setEditingSpeaker(null);
-      setEditValue("");
-      return;
-    }
-
-    if (editValue.trim() === editingSpeaker) {
-      setEditingSpeaker(null);
-      setEditValue("");
-      return;
-    }
-
-    // Store scroll position before update
-    const scrollTop = containerRef.current?.scrollTop || 0;
-
-    // Clear editing state first to prevent re-render conflicts
-    const originalSpeaker = editingSpeaker;
-    const newSpeaker = editValue.trim();
-    setEditingSpeaker(null);
-    setEditValue("");
-
-    // Then update speaker
-    if (onSpeakerUpdate) {
-      // Use setTimeout to avoid blocking the UI
-      setTimeout(() => {
-        onSpeakerUpdate(originalSpeaker, newSpeaker);
-        
-        // Restore scroll position after update
-        setTimeout(() => {
-          if (containerRef.current) {
-            containerRef.current.scrollTop = scrollTop;
-          }
-        }, 50);
-        
-        toast({
-          title: "Speaker updated",
-          description: `All segments updated from "${originalSpeaker}" to "${newSpeaker}"`,
-        });
-      }, 10);
-    }
-  };
-
-  const handleSpeakerCancel = () => {
-    setEditingSpeaker(null);
-    setEditValue("");
-  };
-
-  const handleSpeakerKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleSpeakerSave();
-    }
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      handleSpeakerCancel();
-    }
-  };
+  // Speaker editing functions removed - use Speaker Manager instead
 
   // Handle user scroll to pause auto-scroll temporarily
   const handleScroll = () => {
@@ -371,45 +304,9 @@ export function WordLevelTranscript({
         )}
         {wordsBySegment.map((segmentGroup, segmentIndex) => (
           <div key={segmentIndex} className="space-y-2">
-            {/* Speaker header with editing capability */}
+            {/* Speaker header - editing disabled, use Speaker Manager instead */}
             <div className="flex items-center gap-2 text-sm font-semibold text-primary border-l-2 border-primary pl-3">
-              {editingSpeaker === segmentGroup.segment.speaker ? (
-                <div className="flex items-center gap-1">
-                  <Input
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    onKeyDown={handleSpeakerKeyDown}
-                    className="h-6 px-2 py-0 text-sm border-primary focus:ring-1 focus:ring-primary font-semibold"
-                    style={{ width: `${Math.max(editValue.length * 9, 80)}px` }}
-                    autoFocus
-                  />
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-6 w-6 p-0"
-                    onClick={handleSpeakerSave}
-                  >
-                    <Check className="w-3 h-3" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-6 w-6 p-0"
-                    onClick={handleSpeakerCancel}
-                  >
-                    <X className="w-3 h-3" />
-                  </Button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => handleSpeakerEdit(segmentGroup.segment.speaker)}
-                  className="hover:bg-primary/10 px-2 py-1 rounded transition-colors flex items-center gap-1 group"
-                  title="Click to edit speaker name"
-                >
-                  <span>{segmentGroup.segment.speaker}</span>
-                  <Edit3 className="w-3 h-3 opacity-0 group-hover:opacity-50 transition-opacity" />
-                </button>
-              )}
+              <span>{segmentGroup.segment.speaker}</span>
               <span className="text-muted-foreground text-xs">
                 {formatTime(segmentGroup.segment.start)}
               </span>
@@ -484,43 +381,7 @@ export function WordLevelTranscript({
             >
               <div className="flex items-start gap-3">
                 <div className="text-xs font-semibold text-primary min-w-[100px] flex-shrink-0">
-                  {editingSpeaker === segment.speaker ? (
-                    <div className="flex items-center gap-1">
-                      <Input
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onKeyDown={handleSpeakerKeyDown}
-                        className="h-5 px-1 py-0 text-xs border-primary focus:ring-1 focus:ring-primary font-semibold"
-                        style={{ width: `${Math.max(editValue.length * 7, 60)}px` }}
-                        autoFocus
-                      />
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-5 w-5 p-0"
-                        onClick={handleSpeakerSave}
-                      >
-                        <Check className="w-2.5 h-2.5" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-5 w-5 p-0"
-                        onClick={handleSpeakerCancel}
-                      >
-                        <X className="w-2.5 h-2.5" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => handleSpeakerEdit(segment.speaker)}
-                      className="hover:bg-primary/10 px-1 py-0.5 rounded transition-colors flex items-center gap-1 group"
-                      title="Click to edit speaker name"
-                    >
-                      <span>{segment.speaker}</span>
-                      <Edit3 className="w-2.5 h-2.5 opacity-0 group-hover:opacity-50 transition-opacity" />
-                    </button>
-                  )}
+                  <span>{segment.speaker}</span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm leading-relaxed text-foreground">{segment.text}</p>

@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import ReactPlayer from "react-player/youtube";
 import { useStore } from "@/lib/store";
 import { useTranscription } from "@/hooks/useTranscription";
-import { Loader2, Settings } from "lucide-react";
+import { Loader2, Settings, Users } from "lucide-react";
 import { SelectionToolbar } from "@/components/SelectionToolbar";
 import { WordLevelTranscript } from "@/components/WordLevelTranscript";
 import { buildCitation } from "@/lib/citations";
@@ -14,12 +14,14 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import { SpeakerManager } from "@/components/SpeakerManager";
 
 export function ViewerPanel() {
   const playerRef = useRef<ReactPlayer>(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
+  const [showSpeakerManager, setShowSpeakerManager] = useState(false);
   const [enhancementSettings, setEnhancementSettings] = useState({
     enableAIEnhancement: false,
     autoEnhance: false,
@@ -163,6 +165,7 @@ Return only the enhanced text, no explanations.`);
     transcriptionProgress,
     addQuote,
     updateTranscript,
+    setTranscript,
     quotes,
     updateMultipleQuotes
   } = useStore();
@@ -357,6 +360,15 @@ Return only the enhanced text, no explanations.`);
               >
                 <Settings className="w-4 h-4 text-muted-foreground hover:text-foreground" />
               </button>
+              {transcript && (
+                <button
+                  onClick={() => setShowSpeakerManager(true)}
+                  className="p-1 rounded-md hover:bg-muted/50 transition-colors"
+                  title="Manage Speakers"
+                >
+                  <Users className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+                </button>
+              )}
             </div>
             <span className="font-medium">
               {isEnhancing ? 'Enhancing...' :
@@ -453,7 +465,7 @@ Return only the enhanced text, no explanations.`);
                   <div className="space-y-1">
                     <Label className="text-sm">Basic Cleaning</Label>
                     <p className="text-xs text-muted-foreground">
-                      Remove filler words, format numbers (>$100M, 50%, etc.)
+                      Remove filler words, format numbers (&gt;$100M, 50%, etc.)
                     </p>
                   </div>
                   <div className="w-2 h-2 rounded-full bg-green-500" />
@@ -565,6 +577,21 @@ Return only the enhanced text, no explanations.`);
               )}
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Speaker Manager Modal */}
+      <Dialog open={showSpeakerManager} onOpenChange={setShowSpeakerManager}>
+        <DialogContent className="max-w-lg p-0 max-h-[80vh] overflow-hidden">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Manage Speakers</DialogTitle>
+            <DialogDescription>
+              Rename speakers in the transcript
+            </DialogDescription>
+          </DialogHeader>
+          <SpeakerManager 
+            sourceId={activeSourceId} 
+          />
         </DialogContent>
       </Dialog>
     </div>
