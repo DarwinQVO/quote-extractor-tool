@@ -2,10 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { OpenAI } from 'openai';
-import { writeFileSync, readFileSync, unlinkSync, existsSync } from 'fs';
+import { writeFileSync, readFileSync, unlinkSync, existsSync, createReadStream } from 'fs';
 import { saveTranscript } from '@/lib/database';
 import { tmpdir } from 'os';
 import path from 'path';
+
+// Fix for OpenAI File upload in Node.js
+if (typeof globalThis.File === 'undefined') {
+  globalThis.File = class extends Blob {
+    constructor(chunks: BlobPart[], filename: string, options?: FilePropertyBag) {
+      super(chunks, options);
+      this.name = filename;
+      this.lastModified = Date.now();
+    }
+    name: string;
+    lastModified: number;
+  };
+}
 
 const execAsync = promisify(exec);
 
@@ -318,8 +331,11 @@ async function transcribeWithOpenAI(audioFilePath: string, sourceId: string, tem
       timeout: 300000
     });
     
-    const fs = require('fs');
-    const audioFile = fs.createReadStream(audioFilePath);
+    // Create File object for OpenAI
+    const audioBuffer = readFileSync(audioFilePath);
+    const audioFile = new globalThis.File([audioBuffer], path.basename(audioFilePath), { 
+      type: audioFilePath.endsWith('.mp3') ? 'audio/mpeg' : 'audio/wav' 
+    });
     
     const transcription = await openai.audio.transcriptions.create({
       file: audioFile,
