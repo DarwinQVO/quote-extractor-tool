@@ -88,13 +88,13 @@ const mapToArray = (map: Map<string, unknown>) => Array.from(map.entries());
 const arrayToMap = (array: [string, unknown][]) => new Map(array);
 
 export const useStore = create<AppState>((set, get) => ({
-  sources: migrateVideoSources(loadFromStorage('quote-extractor-sources', [])),
-  quotes: loadFromStorage('quote-extractor-quotes', []),
-  transcripts: arrayToMap(loadFromStorage('quote-extractor-transcripts', [])) as Map<string, Transcript>,
+  sources: [], // Start empty - force load from Supabase
+  quotes: [], // Start empty - force load from Supabase  
+  transcripts: new Map(), // Start empty - force load from Supabase
   activeSourceId: loadFromStorage('quote-extractor-activeSourceId', null),
   transcriptionProgress: new Map(),
   isOnline: typeof window !== 'undefined' ? navigator.onLine : true,
-  lastSyncTime: loadFromStorage('quote-extractor-lastSync', 0),
+  lastSyncTime: 0, // Force fresh load
   
   addSource: (url) => {
     const id = Date.now().toString();
@@ -262,12 +262,15 @@ export const useStore = create<AppState>((set, get) => ({
     
   // Sync functions
   loadFromDatabase: async () => {
+    console.log('🔥 FORCING SUPABASE LOAD - NO localStorage fallback');
     try {
       const [dbSources, dbQuotes, dbTranscripts] = await Promise.all([
         loadSources(),
         loadQuotes(),
         loadAllTranscripts()
       ]);
+      
+      console.log(`🔥 SUPABASE LOADED: ${dbSources.length} sources, ${dbQuotes.length} quotes, ${dbTranscripts.size} transcripts`);
       
       set({
         sources: dbSources,
@@ -282,9 +285,11 @@ export const useStore = create<AppState>((set, get) => ({
       saveToStorage('quote-extractor-transcripts', mapToArray(dbTranscripts));
       saveToStorage('quote-extractor-lastSync', Date.now());
       
-      console.log('✅ Data loaded from database');
+      console.log('✅ Data loaded from Supabase ONLY');
     } catch (error) {
-      console.error('❌ Failed to load from database:', error);
+      console.error('❌ CRITICAL: Failed to load from Supabase:', error);
+      // Don't fall back to localStorage - force error to be visible
+      throw error;
     }
   },
   
