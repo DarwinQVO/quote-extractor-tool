@@ -8,13 +8,20 @@ function isSupabaseAvailable(): boolean {
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const available = !!(url && key && url !== 'build-placeholder' && key !== 'build-placeholder');
   
-  // Force Supabase usage in production if credentials are available
-  if (available && process.env.NODE_ENV === 'production') {
-    console.log('🔄 Production mode: forcing Supabase connection');
+  // ALWAYS force Supabase usage in production - NO MEMORY FALLBACK
+  if (process.env.NODE_ENV === 'production' && available) {
+    console.log('🔄 PRODUCTION: Using ONLY Supabase - NO memory fallback');
     return true;
   }
   
-  return available;
+  // In development, also prefer Supabase if available
+  if (available) {
+    console.log('🔄 Development: Using Supabase');
+    return true;
+  }
+  
+  console.warn('⚠️ Supabase not available, using memory fallback');
+  return false;
 }
 
 // Sources
