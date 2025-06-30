@@ -19,7 +19,7 @@ const nextConfig: NextConfig = {
   },
   // Force complete cache invalidation
   experimental: {
-    isrMemoryCacheSize: 0,
+    // isrMemoryCacheSize option doesn't exist in Next.js 15
   },
 };
 
