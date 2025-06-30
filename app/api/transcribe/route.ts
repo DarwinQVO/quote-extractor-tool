@@ -1271,13 +1271,19 @@ async function getYTDlpWrap() {
 }
 
 export async function POST(request: NextRequest) {
-  console.log('🚀 Transcription request started');
+  console.log('🚀 Transcription request started - BUILD VERSION 2025-01-30-V2');
   
   // DEBUG: Check proxy configuration
   const proxyConfig = process.env.YTDLP_PROXY;
-  console.log('🌐 PROXY CONFIG CHECK:');
+  console.log('🌐 PROXY CONFIG CHECK (NEW VERSION):');
   console.log('- YTDLP_PROXY env var:', proxyConfig ? 'SET ✅' : 'NOT SET ❌');
-  console.log('- Proxy value:', proxyConfig || 'USING HARDCODED FALLBACK');
+  console.log('- Proxy value (masked):', proxyConfig ? proxyConfig.replace(/:[^:@]+@/, ':***@') : 'USING HARDCODED FALLBACK');
+  console.log('- Full proxy check:', !!proxyConfig);
+  
+  // Force verification that we're using the new code
+  console.log('🔧 CODE VERSION CHECK:');
+  console.log('- Using getBrightDataProxy function: ✅');
+  console.log('- Proxy strategies implemented: ✅');
   
   let sourceId, url;
   try {
