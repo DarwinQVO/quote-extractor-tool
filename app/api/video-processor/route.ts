@@ -3,7 +3,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { OpenAI } from 'openai';
 import { writeFileSync, readFileSync, unlinkSync, existsSync, statSync } from 'fs';
-import { saveSource, saveTranscript } from '@/lib/database';
+import { saveSource, saveTranscript, loadTranscript } from '@/lib/database';
 import { tmpdir } from 'os';
 import path from 'path';
 
@@ -357,9 +357,25 @@ export async function POST(request: NextRequest) {
       console.log('✅ Structured fallback transcript created (configure APIs for real transcription)');
     }
     
-    // Save transcript
-    await saveTranscript(sourceId, transcript);
-    console.log('✅ Transcript saved to database');
+    // Save transcript to database
+    try {
+      console.log(`💾 Saving transcript to database for sourceId: ${sourceId}`);
+      console.log(`📊 Transcript data: ${transcript.segments?.length || 0} segments, ${transcript.words?.length || 0} words`);
+      
+      await saveTranscript(sourceId, transcript);
+      console.log('✅ Transcript successfully saved to database');
+      
+      // Verify the save worked
+      const savedTranscript = await loadTranscript(sourceId);
+      if (savedTranscript) {
+        console.log('✅ Verification: Transcript found in database');
+      } else {
+        console.log('❌ Verification: Transcript NOT found in database after save');
+      }
+    } catch (error) {
+      console.error('❌ Failed to save transcript to database:', error);
+      // Don't throw - continue with response even if DB save fails
+    }
     
     // Update source status
     await saveSource({
