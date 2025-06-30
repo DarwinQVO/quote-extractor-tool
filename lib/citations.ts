@@ -1,4 +1,5 @@
 import { VideoSource, Segment } from './types';
+import { formatQuoteText } from './text-formatter';
 
 export function buildCitation(
   source: VideoSource,
@@ -27,8 +28,8 @@ export function buildCitation(
   // Build citation text with embedded link (Speaker (MMM YYYY) format)
   const citationText = `${segment.speaker} (${month} ${year})`;
   
-  // Build markdown with embedded link in citation (no dash)
-  const markdown = `> "${segment.text}"  \n[${citationText}](${link})`;
+  // Build markdown with embedded link in citation (no dash) using curly quotes
+  const markdown = `> ${formatQuoteText(segment.text)}  \n[${citationText}](${link})`;
   
   return {
     text: citationText,

@@ -10,7 +10,12 @@ export interface VideoSource {
   description?: string;
   viewCount?: number;
   status: 'pending' | 'fetching-metadata' | 'transcribing' | 'ready' | 'error';
+  videoStatus: 'loading' | 'ready' | 'error' | 'unavailable';
+  transcriptStatus: 'pending' | 'transcribing' | 'ready' | 'error';
   error?: string;
+  videoError?: string;
+  lastVideoCheck?: Date;
+  videoRetryCount?: number;
 }
 
 export interface Quote {

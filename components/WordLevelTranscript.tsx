@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useRef, useMemo, useEffect } from "react";
-import { Clock } from "lucide-react";
+import React, { useState, useRef, useMemo, useEffect } from "react";
 import { Segment } from "@/lib/types";
+import { groupTranscriptSegments, groupWordsByOptimizedSegments, formatTimeRange } from "@/lib/transcript-grouping";
+import { getSimpleSpeakerColors } from "@/lib/simple-speaker-colors";
 
 interface Word {
   text: string;
@@ -26,7 +27,7 @@ export function WordLevelTranscript({
   currentTime, 
   onWordClick, 
   onTextSelection,
-  onSpeakerUpdate
+  onSpeakerUpdate: _onSpeakerUpdate
 }: WordLevelTranscriptProps) {
   const [selectedWords, setSelectedWords] = useState<number[]>([]);
   const [isSelecting, setIsSelecting] = useState(false);
@@ -39,6 +40,8 @@ export function WordLevelTranscript({
   const [isAutoScrollEnabled, setIsAutoScrollEnabled] = useState(true);
   const [userScrollTimeout, setUserScrollTimeout] = useState<NodeJS.Timeout | null>(null);
   const prevActiveIndex = useRef(-1);
+
+  // Note: Color initialization happens automatically with the simple system
 
   // If we don't have word-level data, fallback to segment-based display
   const hasWordLevelData = words.length > 0;
@@ -229,56 +232,48 @@ export function WordLevelTranscript({
     };
   }, [userScrollTimeout]);
 
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
+  // const formatTime = (seconds: number): string => {
+  //   const mins = Math.floor(seconds / 60);
+  //   const secs = Math.floor(seconds % 60);
+  //   return `${mins}:${secs.toString().padStart(2, '0')}`;
+  // };
 
-  // Memoize expensive wordsBySegment calculation
-  const wordsBySegment = useMemo(() => {
-    if (!hasWordLevelData) return [];
-    
-    const result: Array<{ segment: Segment; words: { word: Word; index: number }[] }> = [];
-    let currentSegmentIndex = 0;
-    let currentSegmentWords: { word: Word; index: number }[] = [];
-
-    words.forEach((word, index) => {
-      // Check if we need to move to the next segment
-      while (currentSegmentIndex < segments.length - 1 && 
-             word.start >= segments[currentSegmentIndex + 1].start) {
-        // Save current segment's words if any
-        if (currentSegmentWords.length > 0) {
-          result.push({
-            segment: segments[currentSegmentIndex],
-            words: currentSegmentWords
-          });
-          currentSegmentWords = [];
-        }
-        currentSegmentIndex++;
-      }
-      
-      // Add word to current segment
-      currentSegmentWords.push({ word, index });
-    });
-
-    // Add the last segment
-    if (currentSegmentWords.length > 0 && currentSegmentIndex < segments.length) {
-      result.push({
-        segment: segments[currentSegmentIndex],
-        words: currentSegmentWords
-      });
+  // Optimized grouping system - reduces visual jumps and improves flow
+  const optimizedGroups = useMemo(() => {
+    if (!hasWordLevelData) {
+      // For segment-only mode, use intelligent grouping
+      return groupTranscriptSegments(segments).map(groupedSegment => ({
+        groupedSegment,
+        words: [] as { word: Word; index: number }[],
+        speakerColors: { backgroundColor: '', textColor: '', borderColor: '', accentColor: '' }
+      }));
     }
     
-    return result;
+    // For word-level mode, use optimized word-segment grouping
+    return groupWordsByOptimizedSegments(words, segments).map((group, groupIndex) => ({
+      groupedSegment: group.segment,
+      words: group.words.map((word, wordIndex) => ({ 
+        word, 
+        index: words.findIndex(w => w === word) 
+      })),
+      speakerColors: { backgroundColor: '', textColor: '', borderColor: '', accentColor: '' }
+    }));
   }, [words, segments, hasWordLevelData]);
+
+  // Pre-calculate speaker colors for all groups to avoid hook issues
+  const groupsWithColors = useMemo(() => {
+    return optimizedGroups.map(group => ({
+      ...group,
+      speakerColors: getSimpleSpeakerColors(group.groupedSegment.speaker)
+    }));
+  }, [optimizedGroups]);
 
   if (hasWordLevelData) {
 
     return (
       <div 
         ref={containerRef}
-        className="space-y-6 pb-8 h-full overflow-y-auto"
+        className="space-y-4 pb-8 h-full overflow-y-auto"
         onMouseUp={(e) => handleMouseUp(e)}
         onMouseLeave={() => {
           setIsSelecting(false);
@@ -302,50 +297,102 @@ export function WordLevelTranscript({
             <div className="text-xs opacity-80">Release to create quote</div>
           </div>
         )}
-        {wordsBySegment.map((segmentGroup, segmentIndex) => (
-          <div key={segmentIndex} className="space-y-2">
-            {/* Speaker header - editing disabled, use Speaker Manager instead */}
-            <div className="flex items-center gap-2 text-sm font-semibold text-primary border-l-2 border-primary pl-3">
-              <span>{segmentGroup.segment.speaker}</span>
-              <span className="text-muted-foreground text-xs">
-                {formatTime(segmentGroup.segment.start)}
-              </span>
-            </div>
-            
-            {/* Words in this segment */}
-            <div className="leading-relaxed">
-              {segmentGroup.words.map(({ word, index }) => {
-                const isActive = index === activeWordIndex;
-                const isSelected = isSelecting && selectedWords.includes(index);
-
-                return (
-                  <span
-                    key={index}
-                    id={`word-${index}`}
-                    className={`inline-block px-1 py-0.5 mx-0.5 rounded cursor-pointer transition-all duration-150 select-none ${
-                      isActive 
-                        ? 'bg-yellow-400/40 ring-2 ring-yellow-400/60 shadow-sm' 
-                        : isSelected
-                        ? 'bg-blue-400/40 ring-2 ring-blue-400/60'
-                        : 'hover:bg-muted/60'
-                    }`}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      handleWordMouseDown(index, e);
-                    }}
-                    onMouseEnter={(e) => handleWordMouseEnter(index, e)}
-                    onMouseUp={(e) => {
-                      e.preventDefault();
-                      handleMouseUp(e, index);
-                    }}
+        {groupsWithColors.map((group, groupIndex) => {
+          const speakerColors = group.speakerColors;
+          
+          return (
+            <div 
+              key={groupIndex} 
+              className="rounded-lg p-3 mb-3 transition-all duration-200 border"
+              style={{ 
+                backgroundColor: speakerColors.backgroundColor,
+                borderColor: speakerColors.borderColor 
+              }}
+            >
+              {/* Enhanced Speaker header with colors and group info */}
+              <div 
+                className="flex items-center justify-between mb-3 pb-2 border-b"
+                style={{ borderColor: speakerColors.borderColor }}
+              >
+                <div className="flex items-center gap-3">
+                  <div 
+                    className="w-3 h-3 rounded-full"
+                    style={{ backgroundColor: speakerColors.accentColor }}
+                  ></div>
+                  <span 
+                    className="font-semibold"
+                    style={{ color: speakerColors.textColor }}
                   >
-                    {word.text}
+                    {group.groupedSegment.speaker}
                   </span>
-                );
-              })}
+                  <span 
+                    className="text-xs opacity-70"
+                    style={{ color: speakerColors.textColor }}
+                  >
+                    {formatTimeRange(group.groupedSegment.startTime, group.groupedSegment.endTime)}
+                  </span>
+                </div>
+                {group.groupedSegment.segments.length > 1 && (
+                  <span 
+                    className="text-xs opacity-60 font-medium"
+                    style={{ color: speakerColors.textColor }}
+                  >
+                    {group.groupedSegment.segments.length} segments • {group.groupedSegment.wordCount} words
+                  </span>
+                )}
+              </div>
+            
+              {/* Words in this grouped segment con separadores para pausas */}
+              <div className="leading-relaxed text-base">
+                {group.words.map(({ word, index }, wordIndex) => {
+                  const isActive = index === activeWordIndex;
+                  const isSelected = isSelecting && selectedWords.includes(index);
+                  
+                  // Check if there's a significant pause before this word
+                  const prevWord = wordIndex > 0 ? group.words[wordIndex - 1].word : null;
+                  const hasPause = prevWord && (word.start - prevWord.end) > 0.8; // 0.8+ seconds pause
+                  
+                  return (
+                    <React.Fragment key={index}>
+                      {/* Pause indicator - solo líneas */}
+                      {hasPause && (
+                        <div className="block w-full my-4">
+                          <div className="flex items-center">
+                            <div className="flex-1 h-0.5 bg-gradient-to-r from-transparent via-gray-400/60 to-transparent"></div>
+                            <div className="mx-4 w-2 h-0.5 bg-gray-400/60"></div>
+                            <div className="flex-1 h-0.5 bg-gradient-to-r from-transparent via-gray-400/60 to-transparent"></div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      <span
+                        id={`word-${index}`}
+                        className={`inline-block px-1 py-0.5 mx-0.5 rounded cursor-pointer transition-all duration-150 select-none ${
+                          isActive 
+                            ? 'bg-yellow-400/40 ring-2 ring-yellow-400/60 shadow-sm' 
+                            : isSelected
+                            ? 'bg-blue-400/40 ring-2 ring-blue-400/60'
+                            : 'hover:bg-muted/60'
+                        }`}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          handleWordMouseDown(index, e);
+                        }}
+                        onMouseEnter={(e) => handleWordMouseEnter(index, e)}
+                        onMouseUp={(e) => {
+                          e.preventDefault();
+                          handleMouseUp(e, index);
+                        }}
+                      >
+                        {word.text}
+                      </span>
+                    </React.Fragment>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   } else {
@@ -353,7 +400,7 @@ export function WordLevelTranscript({
     return (
       <div 
         ref={containerRef} 
-        className="space-y-3 pb-8 h-full overflow-y-auto"
+        className="space-y-4 pb-8 h-full overflow-y-auto"
         onScroll={handleScroll}
         style={{ 
           scrollBehavior: 'smooth',
@@ -361,35 +408,87 @@ export function WordLevelTranscript({
           isolation: 'isolate'
         }}
       >
-        {segments.map((segment, index) => {
-          const isActive = index === activeSegmentIndex;
-          const isSelected = selectedWords.includes(index);
+        {groupsWithColors.map((group, groupIndex) => {
+          const speakerColors = group.speakerColors;
+          const isActive = group.groupedSegment.segments.some(seg => 
+            currentTime >= seg.start && currentTime < seg.end
+          );
           
           return (
             <div
-              key={index}
-              className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
+              key={groupIndex}
+              className={`rounded-lg p-3 mb-3 cursor-pointer transition-all duration-200 border ${
                 isActive 
-                  ? 'bg-yellow-400/20 ring-2 ring-yellow-400/50' 
-                  : isSelected
-                  ? 'bg-blue-400/20 ring-2 ring-blue-400/50'
-                  : 'hover:bg-muted/50'
+                  ? 'ring-2 ring-yellow-400/50 shadow-md' 
+                  : 'hover:shadow-sm'
               }`}
-              onClick={() => onWordClick(segment.start)}
-              onMouseDown={(e) => handleWordMouseDown(index, e)}
-              id={`segment-${index}`}
+              style={{ 
+                backgroundColor: speakerColors.backgroundColor,
+                borderColor: speakerColors.borderColor 
+              }}
+              onClick={() => onWordClick(group.groupedSegment.startTime)}
+              id={`group-${groupIndex}`}
             >
-              <div className="flex items-start gap-3">
-                <div className="text-xs font-semibold text-primary min-w-[100px] flex-shrink-0">
-                  <span>{segment.speaker}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm leading-relaxed text-foreground">{segment.text}</p>
-                  <span className="text-xs text-muted-foreground mt-1 block flex items-center gap-1">
-                    <Clock className="w-3 h-3" />
-                    {formatTime(segment.start)} - {formatTime(segment.end)}
+              {/* Enhanced Speaker header with colors */}
+              <div 
+                className="flex items-center justify-between mb-3 pb-2 border-b"
+                style={{ borderColor: speakerColors.borderColor }}
+              >
+                <div className="flex items-center gap-3">
+                  <div 
+                    className="w-3 h-3 rounded-full"
+                    style={{ backgroundColor: speakerColors.accentColor }}
+                  ></div>
+                  <span 
+                    className="font-semibold"
+                    style={{ color: speakerColors.textColor }}
+                  >
+                    {group.groupedSegment.speaker}
+                  </span>
+                  <span 
+                    className="text-xs opacity-70"
+                    style={{ color: speakerColors.textColor }}
+                  >
+                    {formatTimeRange(group.groupedSegment.startTime, group.groupedSegment.endTime)}
                   </span>
                 </div>
+                {group.groupedSegment.segments.length > 1 && (
+                  <span 
+                    className="text-xs opacity-60 font-medium"
+                    style={{ color: speakerColors.textColor }}
+                  >
+                    {group.groupedSegment.segments.length} segments • {group.groupedSegment.wordCount} words
+                  </span>
+                )}
+              </div>
+              
+              {/* Combined text from grouped segments con separadores para pausas */}
+              <div className="text-base leading-relaxed">
+                {group.groupedSegment.segments.map((segment, segIndex) => {
+                  // Check if there's a significant pause before this segment
+                  const prevSegment = segIndex > 0 ? group.groupedSegment.segments[segIndex - 1] : null;
+                  const hasPause = prevSegment && (segment.start - prevSegment.end) > 0.8; // 0.8+ seconds pause
+                  
+                  return (
+                    <React.Fragment key={segIndex}>
+                      {/* Pause indicator - solo líneas */}
+                      {hasPause && (
+                        <div className="block w-full my-4">
+                          <div className="flex items-center">
+                            <div className="flex-1 h-0.5 bg-gradient-to-r from-transparent via-gray-400/60 to-transparent"></div>
+                            <div className="mx-4 w-2 h-0.5 bg-gray-400/60"></div>
+                            <div className="flex-1 h-0.5 bg-gradient-to-r from-transparent via-gray-400/60 to-transparent"></div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      <span style={{ color: speakerColors.textColor, opacity: 0.9 }}>
+                        {segment.text}
+                        {segIndex < group.groupedSegment.segments.length - 1 ? ' ' : ''}
+                      </span>
+                    </React.Fragment>
+                  );
+                })}
               </div>
             </div>
           );

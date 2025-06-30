@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDocsClient, getDriveClient } from '@/lib/google-auth';
 import { Quote, VideoSource } from '@/lib/types';
-import { formatTimeForDisplay } from '@/lib/citations';
+import { formatQuoteForGoogleDocs, formatTimeForDisplay, formatDateForGoogleDocs } from '@/lib/text-formatter';
 
 interface ExportRequest {
   sourceId: string;
@@ -65,14 +65,11 @@ export async function POST(request: NextRequest) {
     for (let i = 0; i < quotes.length; i++) {
       const quote = quotes[i];
       const timeFormatted = formatTimeForDisplay(quote.startTime);
-      const dateFormatted = source.addedAt.toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: '2-digit', 
-        year: 'numeric'
-      });
+      const dateFormatted = formatDateForGoogleDocs(source.addedAt);
       
-      // Quote text with citation
-      const quoteText = `"${quote.text}"\n— ${quote.speaker}, (${timeFormatted} / ${dateFormatted})\n\n`;
+      // Quote text with citation using proper curly quotes
+      const formattedQuoteText = formatQuoteForGoogleDocs(quote);
+      const quoteText = `${formattedQuoteText}\n— ${quote.speaker}, (${timeFormatted} / ${dateFormatted})\n\n`;
       
       // Insert quote text
       requests.push({
@@ -82,12 +79,15 @@ export async function POST(request: NextRequest) {
         },
       });
       
-      // Style the quote (italic)
+      // Style the quote (italic) - adjust for curly quotes
+      const quoteStartIndex = insertIndex + 1; // Skip opening curly quote
+      const quoteEndIndex = insertIndex + quote.text.length + 1;
+      
       requests.push({
         updateTextStyle: {
           range: {
-            startIndex: insertIndex + 1, // Skip opening quote
-            endIndex: insertIndex + quote.text.length + 1,
+            startIndex: quoteStartIndex,
+            endIndex: quoteEndIndex,
           },
           textStyle: {
             italic: true,

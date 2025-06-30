@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { useStore } from "@/lib/store";
 import { Transcript } from "@/lib/types";
+import { speakerColorManager, useSpeakerColors } from "@/lib/speaker-colors";
 
 interface SpeakerManagerProps {
   sourceId: string | null;
@@ -94,6 +95,9 @@ export function SpeakerManager({ sourceId }: SpeakerManagerProps) {
               : s
           )
         });
+
+        // Update speaker color mapping
+        speakerColorManager.updateSpeakerName(oldName, newName);
 
         // Update quotes
         const quotesToUpdate = quotes.filter(
@@ -184,12 +188,17 @@ export function SpeakerManager({ sourceId }: SpeakerManagerProps) {
           </div>
         ) : (
           <div className="space-y-3">
-            {speakers.map((speaker, index) => (
-              <div
-                key={`${speaker.originalName}-${index}`}
-                className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
-              >
-                <div className="flex items-center gap-3 flex-1">
+            {speakers.map((speaker, index) => {
+              const speakerColors = useSpeakerColors(speaker.customName);
+              
+              return (
+                <div
+                  key={`${speaker.originalName}-${index}`}
+                  className={`flex items-center justify-between p-4 rounded-lg border transition-colors ${speakerColors.background} hover:shadow-sm`}
+                >
+                  <div className="flex items-center gap-3 flex-1">
+                    {/* Speaker color indicator */}
+                    <div className={`w-4 h-4 rounded-full ${speakerColors.accent.replace('text-', 'bg-')} flex-shrink-0`}></div>
                   {editingIndex === index ? (
                     <div className="flex items-center gap-2 flex-1">
                       <Input
@@ -228,16 +237,18 @@ export function SpeakerManager({ sourceId }: SpeakerManagerProps) {
                     <>
                       <button
                         onClick={() => handleEdit(index)}
-                        className="flex items-center gap-2 hover:text-primary transition-colors group flex-1 text-left p-2 rounded hover:bg-accent/30"
+                        className={`flex items-center gap-2 transition-colors group flex-1 text-left p-2 rounded hover:opacity-80`}
                       >
-                        <span className="font-medium text-base">{speaker.customName}</span>
-                        <Edit3 className="w-4 h-4 opacity-0 group-hover:opacity-60 transition-opacity" />
+                        <span className={`font-semibold text-base ${speakerColors.text}`}>
+                          {speaker.customName}
+                        </span>
+                        <Edit3 className={`w-4 h-4 opacity-0 group-hover:opacity-60 transition-opacity ${speakerColors.accent}`} />
                       </button>
                       <div className="text-right">
-                        <span className="text-sm font-medium text-primary">
+                        <span className={`text-sm font-medium ${speakerColors.accent}`}>
                           {speaker.count}
                         </span>
-                        <p className="text-xs text-muted-foreground">
+                        <p className={`text-xs ${speakerColors.text} opacity-70`}>
                           segment{speaker.count !== 1 ? 's' : ''}
                         </p>
                       </div>
@@ -245,7 +256,8 @@ export function SpeakerManager({ sourceId }: SpeakerManagerProps) {
                   )}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
         

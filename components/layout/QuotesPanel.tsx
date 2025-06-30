@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { useGoogleDocsExport } from "@/hooks/useGoogleDocsExport";
+import { formatQuoteForClipboard, formatQuoteForHtml, formatMultipleQuotes, formatQuoteText } from "@/lib/text-formatter";
 import { useState } from "react";
 
 export function QuotesPanel() {
@@ -30,25 +31,8 @@ export function QuotesPanel() {
       return;
     }
     
-    const plainTextQuotes = filteredQuotes
-      .map(quote => {
-        const source = sources.find(s => s.id === quote.sourceId);
-        if (!source) return '';
-        
-        return `"${quote.text}"\n${quote.citation}`;
-      })
-      .filter(Boolean)
-      .join('\n\n');
-    
-    const htmlQuotes = filteredQuotes
-      .map(quote => {
-        const source = sources.find(s => s.id === quote.sourceId);
-        if (!source) return '';
-        
-        return `"${quote.text}"<br><a href="${quote.timestampLink}">${quote.citation}</a>`;
-      })
-      .filter(Boolean)
-      .join('<br><br>');
+    const plainTextQuotes = formatMultipleQuotes(filteredQuotes, sources, 'plain');
+    const htmlQuotes = formatMultipleQuotes(filteredQuotes, sources, 'html');
     
     try {
       // Use modern clipboard API to write multiple formats
@@ -82,12 +66,12 @@ export function QuotesPanel() {
   };
   
   const handleCopyQuote = async (quote: { sourceId: string; text: string; citation: string; timestampLink: string }) => {
-    const source = sources.find(s => s.id === quote.sourceId);
+    const source = sources.find(s => s.id === quote.sourceId);  
     if (!source) return;
     
-    // Create rich text format for Google Docs
-    const plainText = `"${quote.text}"\n${quote.citation}`;
-    const htmlFormat = `"${quote.text}"<br><a href="${quote.timestampLink}">${quote.citation}</a>`;
+    // Create rich text format for Google Docs using unified formatter
+    const plainText = formatQuoteForClipboard(quote as any);
+    const htmlFormat = formatQuoteForHtml(quote as any);
     
     try {
       // Use modern clipboard API to write multiple formats
@@ -281,7 +265,7 @@ export function QuotesPanel() {
                     )}
                     
                     <blockquote className="text-sm leading-relaxed italic border-l-4 border-primary pl-4">
-                      &ldquo;{quote.text}&rdquo;{' '}
+                      {formatQuoteText(quote.text)} 
                       <span className="text-xs text-muted-foreground not-italic">
                         <a 
                           href={quote.timestampLink}

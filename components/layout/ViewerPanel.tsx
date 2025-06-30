@@ -4,7 +4,8 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import ReactPlayer from "react-player/youtube";
 import { useStore } from "@/lib/store";
 import { useTranscription } from "@/hooks/useTranscription";
-import { Loader2, Settings, Users } from "lucide-react";
+import { useVideoValidator } from "@/hooks/useVideoValidator";
+import { Loader2, Settings, Users, AlertTriangle, RefreshCw } from "lucide-react";
 import { SelectionToolbar } from "@/components/SelectionToolbar";
 import { WordLevelTranscript } from "@/components/WordLevelTranscript";
 import { buildCitation } from "@/lib/citations";
@@ -22,6 +23,8 @@ export function ViewerPanel() {
   const [currentTime, setCurrentTime] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   const [showSpeakerManager, setShowSpeakerManager] = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
+  const [videoError, setVideoError] = useState<string | null>(null);
   const [enhancementSettings, setEnhancementSettings] = useState({
     enableAIEnhancement: false,
     autoEnhance: false,
@@ -167,14 +170,76 @@ Return only the enhanced text, no explanations.`);
     updateTranscript,
     setTranscript,
     quotes,
-    updateMultipleQuotes
+    updateMultipleQuotes,
+    updateSource
   } = useStore();
   
   const activeSource = sources.find(s => s.id === activeSourceId);
   const transcript = activeSourceId ? transcripts.get(activeSourceId) : null;
   const progress = activeSourceId ? transcriptionProgress.get(activeSourceId) || 0 : 0;
   
+  // Initialize video validator
+  const { validateVideo, isValidating, retryVideoLoad, forceVideoRefresh } = useVideoValidator();
+  
   useTranscription(activeSourceId);
+
+  // Video validation and synchronization
+  useEffect(() => {
+    if (activeSource && activeSource.transcriptStatus === 'ready' && activeSource.videoStatus !== 'ready') {
+      // Transcript is ready but video status is not validated - validate now
+      validateVideo(activeSource);
+    }
+  }, [activeSource, validateVideo]);
+
+  // Handle video player events
+  const handleVideoReady = useCallback(() => {
+    setVideoReady(true);
+    setVideoError(null);
+    
+    if (activeSourceId) {
+      updateSource(activeSourceId, { 
+        videoStatus: 'ready',
+        videoError: undefined,
+        lastVideoCheck: new Date()
+      });
+    }
+  }, [activeSourceId, updateSource]);
+
+  const handleVideoError = useCallback((error: any) => {
+    console.error('ReactPlayer error:', error);
+    setVideoReady(false);
+    
+    const errorMessage = error?.message || 'Video failed to load';
+    setVideoError(errorMessage);
+    
+    if (activeSourceId) {
+      updateSource(activeSourceId, { 
+        videoStatus: 'error',
+        videoError: errorMessage,
+        videoRetryCount: (activeSource?.videoRetryCount || 0) + 1
+      });
+
+      toast({
+        title: 'Video Loading Error',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+      
+      // Auto-retry if under limit
+      if ((activeSource?.videoRetryCount || 0) < 2) {
+        setTimeout(() => {
+          retryVideoLoad(activeSourceId);
+        }, 3000);
+      }
+    }
+  }, [activeSourceId, activeSource, updateSource, retryVideoLoad]);
+
+  const handleVideoBuffer = useCallback(() => {
+    // Reset error state on buffer (video is loading)
+    if (videoError) {
+      setVideoError(null);
+    }
+  }, [videoError]);
   
   // Poll for current time more frequently for word-level sync
   useEffect(() => {
@@ -325,22 +390,82 @@ Return only the enhanced text, no explanations.`);
     <div className="h-full flex flex-col bg-muted/10 border-l border-border">
       <div className="relative aspect-video bg-black flex-shrink-0 max-h-[40vh] mx-6 mt-6 rounded-xl overflow-hidden shadow-lg">
         {activeSource ? (
-          <ReactPlayer
-            ref={playerRef}
-            url={activeSource.url}
-            width="100%"
-            height="100%"
-            playing={playing}
-            onPlay={() => setPlaying(true)}
-            onPause={() => setPlaying(false)}
-            controls
-            config={{
-              playerVars: {
-                modestbranding: 1,
-                rel: 0,
-              }
-            }}
-          />
+          <>
+            <ReactPlayer
+              ref={playerRef}
+              url={activeSource.url}
+              width="100%"
+              height="100%"
+              playing={playing}
+              onPlay={() => setPlaying(true)}
+              onPause={() => setPlaying(false)}
+              onReady={handleVideoReady}
+              onError={handleVideoError}
+              onBuffer={handleVideoBuffer}
+              onBufferEnd={() => setVideoError(null)}
+              controls
+              config={{
+                playerVars: {
+                  modestbranding: 1,
+                  rel: 0,
+                }
+              }}
+            />
+            
+            {/* Video Status Overlay */}
+            {(isValidating || activeSource.videoStatus === 'loading') && (
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-xl">
+                <div className="flex items-center gap-3 text-white">
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                  <span>Validating video access...</span>
+                </div>
+              </div>
+            )}
+            
+            {activeSource.videoStatus === 'error' && (
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-xl">
+                <div className="text-center text-white space-y-3">
+                  <AlertTriangle className="w-8 h-8 text-yellow-500 mx-auto" />
+                  <div>
+                    <p className="font-medium">Video Loading Error</p>
+                    <p className="text-sm text-gray-300">{activeSource.videoError}</p>
+                  </div>
+                  <Button
+                    onClick={() => retryVideoLoad(activeSource.id)}
+                    variant="outline"
+                    size="sm"
+                    className="text-black"
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Retry
+                  </Button>
+                </div>
+              </div>
+            )}
+            
+            {activeSource.videoStatus === 'unavailable' && (
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-xl">
+                <div className="text-center text-white space-y-3">
+                  <AlertTriangle className="w-8 h-8 text-red-500 mx-auto" />
+                  <div>
+                    <p className="font-medium">Video Unavailable</p>
+                    <p className="text-sm text-gray-300">
+                      This video cannot be accessed, but transcript is available
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => forceVideoRefresh(activeSource.id)}
+                    variant="outline"
+                    size="sm"
+                    className="text-black"
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Check Again
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
         ) : (
           <div className="absolute inset-0 flex items-center justify-center rounded-xl">
             <p className="text-muted-foreground">No video loaded</p>

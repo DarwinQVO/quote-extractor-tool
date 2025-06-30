@@ -28,7 +28,10 @@ export function useTranscription(sourceId: string | null) {
         words: existingTranscript.words,
         speakers: existingTranscript.speakers,
       });
-      updateSource(sourceId, { status: 'ready' });
+      updateSource(sourceId, { 
+        status: 'ready',
+        transcriptStatus: 'ready'
+      });
       
       toast({
         title: 'Transcript loaded',
@@ -38,7 +41,10 @@ export function useTranscription(sourceId: string | null) {
     }
     
     try {
-      updateSource(sourceId, { status: 'transcribing' });
+      updateSource(sourceId, { 
+        status: 'transcribing',
+        transcriptStatus: 'transcribing'
+      });
       
       // Start SSE for progress updates
       const eventSource = new EventSource(`/api/transcribe/status?id=${sourceId}`);
@@ -73,7 +79,10 @@ export function useTranscription(sourceId: string | null) {
         speakers: speakers || [],
       });
       
-      updateSource(sourceId, { status: 'ready' });
+      updateSource(sourceId, { 
+        status: 'ready',
+        transcriptStatus: 'ready'
+      });
       
       // Invalidate React Query cache to ensure fresh data
       queryClient.invalidateQueries({ queryKey: ['transcript', sourceId] });
@@ -107,6 +116,7 @@ export function useTranscription(sourceId: string | null) {
       
       updateSource(sourceId, { 
         status: 'error',
+        transcriptStatus: 'error',
         error: errorDetails
       });
       

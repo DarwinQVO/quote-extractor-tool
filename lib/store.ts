@@ -9,6 +9,7 @@ import {
   saveTranscript,
   loadAllTranscripts
 } from './database';
+import { migrateVideoSources } from './migration-utils';
 
 interface AppState {
   sources: VideoSource[];
@@ -87,7 +88,7 @@ const mapToArray = (map: Map<string, unknown>) => Array.from(map.entries());
 const arrayToMap = (array: [string, unknown][]) => new Map(array);
 
 export const useStore = create<AppState>((set, get) => ({
-  sources: loadFromStorage('quote-extractor-sources', []),
+  sources: migrateVideoSources(loadFromStorage('quote-extractor-sources', [])),
   quotes: loadFromStorage('quote-extractor-quotes', []),
   transcripts: arrayToMap(loadFromStorage('quote-extractor-transcripts', [])) as Map<string, Transcript>,
   activeSourceId: loadFromStorage('quote-extractor-activeSourceId', null),
@@ -106,6 +107,9 @@ export const useStore = create<AppState>((set, get) => ({
       thumbnail: '',
       addedAt: new Date(),
       status: 'fetching-metadata',
+      videoStatus: 'loading',
+      transcriptStatus: 'pending',
+      videoRetryCount: 0,
     };
     
     set((state) => {
