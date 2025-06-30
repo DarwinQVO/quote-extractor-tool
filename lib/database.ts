@@ -1,6 +1,8 @@
 import { supabase, transformSourceFromDB, transformSourceToDB, transformQuoteFromDB, transformQuoteToDB, DatabaseSource, DatabaseQuote } from './supabase'
 import { VideoSource, Quote, Transcript } from './types'
-import { memoryStorage_ } from './memory-storage'
+
+// PRODUCTION MODE: NO MEMORY STORAGE - SUPABASE ONLY
+console.log('🔥 DATABASE MODULE: Configured for SUPABASE ONLY - NO memory fallback')
 
 // Check if Supabase is available
 function isSupabaseAvailable(): boolean {
@@ -26,334 +28,252 @@ function isSupabaseAvailable(): boolean {
 
 // Sources
 export async function saveSources(sources: VideoSource[]) {
-  if (!isSupabaseAvailable()) {
-    console.log('💾 Using memory storage for sources');
-    for (const source of sources) {
-      await memoryStorage_.sources.create(source);
-    }
-    return;
+  console.log('🔥 PRODUCTION: Using ONLY Supabase - NO memory fallback allowed');
+  
+  const dbSources = sources.map(transformSourceToDB)
+  
+  const { error } = await supabase
+    .from('sources')
+    .upsert(dbSources, { 
+      onConflict: 'id',
+      ignoreDuplicates: false 
+    })
+  
+  if (error) {
+    console.error('❌ Supabase error:', error)
+    throw new Error(`Supabase save failed: ${error.message}`)
   }
-
-  try {
-    const dbSources = sources.map(transformSourceToDB)
-    
-    const { error } = await supabase
-      .from('sources')
-      .upsert(dbSources, { 
-        onConflict: 'id',
-        ignoreDuplicates: false 
-      })
-    
-    if (error) throw error
-    console.log('✅ Sources saved to Supabase')
-  } catch (error) {
-    console.error('❌ Error saving sources, falling back to memory:', error)
-    for (const source of sources) {
-      await memoryStorage_.sources.create(source);
-    }
-  }
+  
+  console.log('✅ Sources saved to Supabase ONLY')
 }
 
 export async function loadSources(): Promise<VideoSource[]> {
-  if (!isSupabaseAvailable()) {
-    console.log('💾 Loading sources from memory storage');
-    return await memoryStorage_.sources.findAll();
+  console.log('🔥 PRODUCTION: Loading from ONLY Supabase - NO memory fallback');
+  
+  const { data, error } = await supabase
+    .from('sources')
+    .select('*')
+    .order('created_at', { ascending: false })
+  
+  if (error) {
+    console.error('❌ Supabase load error:', error)
+    throw new Error(`Supabase load failed: ${error.message}`)
   }
-
-  try {
-    const { data, error } = await supabase
-      .from('sources')
-      .select('*')
-      .order('created_at', { ascending: false })
-    
-    if (error) throw error
-    
-    return data?.map(item => transformSourceFromDB(item as unknown as DatabaseSource)) || []
-  } catch (error) {
-    console.error('❌ Error loading sources, falling back to memory:', error)
-    return await memoryStorage_.sources.findAll();
-  }
+  
+  console.log(`✅ Loaded ${data?.length || 0} sources from Supabase ONLY`)
+  return data?.map(item => transformSourceFromDB(item as unknown as DatabaseSource)) || []
 }
 
 export async function updateSource(sourceId: string, updates: Partial<VideoSource>) {
-  if (!isSupabaseAvailable()) {
-    console.log('💾 Using memory storage for source update');
-    return await memoryStorage_.sources.update(sourceId, updates);
+  console.log('🔥 PRODUCTION: Updating in ONLY Supabase');
+  
+  const dbUpdates = transformSourceToDB(updates as VideoSource);
+  
+  const { error } = await supabase
+    .from('sources')
+    .update(dbUpdates)
+    .eq('id', sourceId);
+  
+  if (error) {
+    console.error('❌ Supabase update error:', error);
+    throw new Error(`Supabase update failed: ${error.message}`);
   }
-
-  try {
-    const existing = await memoryStorage_.sources.findById(sourceId);
-    if (!existing) return null;
-    
-    const updated = { ...existing, ...updates };
-    const dbSource = transformSourceToDB(updated);
-    
-    const { error } = await supabase
-      .from('sources')
-      .update(dbSource)
-      .eq('id', sourceId);
-    
-    if (error) throw error;
-    console.log('✅ Source updated in Supabase:', sourceId);
-    return updated;
-  } catch (error) {
-    console.error('❌ Error updating source, falling back to memory:', error);
-    return await memoryStorage_.sources.update(sourceId, updates);
-  }
+  
+  console.log('✅ Source updated in Supabase ONLY:', sourceId);
+  return updates as VideoSource;
 }
 
 export async function saveSource(source: VideoSource) {
-  if (!isSupabaseAvailable()) {
-    console.log('💾 Using memory storage for source');
-    await memoryStorage_.sources.create(source);
-    return;
+  console.log('🔥 PRODUCTION: Saving to ONLY Supabase');
+  
+  const dbSource = transformSourceToDB(source)
+  
+  const { error } = await supabase
+    .from('sources')
+    .upsert(dbSource, { 
+      onConflict: 'id',
+      ignoreDuplicates: false 
+    })
+  
+  if (error) {
+    console.error('❌ Supabase save error:', error)
+    throw new Error(`Supabase save failed: ${error.message}`)
   }
-
-  try {
-    const dbSource = transformSourceToDB(source)
-    
-    const { error } = await supabase
-      .from('sources')
-      .upsert(dbSource, { 
-        onConflict: 'id',
-        ignoreDuplicates: false 
-      })
-    
-    if (error) throw error
-    console.log('✅ Source saved to Supabase:', source.id)
-  } catch (error) {
-    console.error('❌ Error saving source, falling back to memory:', error)
-    await memoryStorage_.sources.create(source);
-  }
+  
+  console.log('✅ Source saved to Supabase ONLY:', source.id)
 }
 
 export async function deleteSource(sourceId: string) {
-  if (!isSupabaseAvailable()) {
-    console.log('💾 Using memory storage for deletion');
-    await memoryStorage_.quotes.deleteBySourceId(sourceId);
-    await memoryStorage_.transcripts.delete(sourceId);
-    await memoryStorage_.sources.delete(sourceId);
-    return;
+  console.log('🔥 PRODUCTION: Deleting from ONLY Supabase');
+  
+  // Delete related data first
+  await supabase.from('quotes').delete().eq('source_id', sourceId)
+  await supabase.from('transcripts').delete().eq('source_id', sourceId)
+  
+  // Delete source
+  const { error } = await supabase
+    .from('sources')
+    .delete()
+    .eq('id', sourceId)
+  
+  if (error) {
+    console.error('❌ Supabase delete error:', error)
+    throw new Error(`Supabase delete failed: ${error.message}`)
   }
-
-  try {
-    // Delete related data first
-    await supabase.from('quotes').delete().eq('source_id', sourceId)
-    await supabase.from('transcripts').delete().eq('source_id', sourceId)
-    
-    // Delete source
-    const { error } = await supabase
-      .from('sources')
-      .delete()
-      .eq('id', sourceId)
-    
-    if (error) throw error
-    console.log('✅ Source deleted from Supabase:', sourceId)
-  } catch (error) {
-    console.error('❌ Error deleting source, falling back to memory:', error)
-    await memoryStorage_.quotes.deleteBySourceId(sourceId);
-    await memoryStorage_.transcripts.delete(sourceId);
-    await memoryStorage_.sources.delete(sourceId);
-  }
+  
+  console.log('✅ Source deleted from Supabase ONLY:', sourceId)
 }
 
 // Quotes
 export async function saveQuotes(quotes: Quote[]) {
-  if (!isSupabaseAvailable()) {
-    console.log('💾 Using memory storage for quotes');
-    for (const quote of quotes) {
-      await memoryStorage_.quotes.create(quote);
-    }
-    return;
+  console.log('🔥 PRODUCTION: Saving quotes to ONLY Supabase');
+  
+  const dbQuotes = quotes.map(transformQuoteToDB)
+  
+  const { error } = await supabase
+    .from('quotes')
+    .upsert(dbQuotes, { 
+      onConflict: 'id',
+      ignoreDuplicates: false 
+    })
+  
+  if (error) {
+    console.error('❌ Supabase quotes error:', error)
+    throw new Error(`Supabase quotes save failed: ${error.message}`)
   }
-
-  try {
-    const dbQuotes = quotes.map(transformQuoteToDB)
-    
-    const { error } = await supabase
-      .from('quotes')
-      .upsert(dbQuotes, { 
-        onConflict: 'id',
-        ignoreDuplicates: false 
-      })
-    
-    if (error) throw error
-    console.log('✅ Quotes saved to Supabase')
-  } catch (error) {
-    console.error('❌ Error saving quotes, falling back to memory:', error)
-    for (const quote of quotes) {
-      await memoryStorage_.quotes.create(quote);
-    }
-  }
+  
+  console.log('✅ Quotes saved to Supabase ONLY')
 }
 
 export async function loadQuotes(): Promise<Quote[]> {
-  if (!isSupabaseAvailable()) {
-    console.log('💾 Loading quotes from memory storage');
-    return await memoryStorage_.quotes.findAll();
+  console.log('🔥 PRODUCTION: Loading quotes from ONLY Supabase');
+  
+  const { data, error } = await supabase
+    .from('quotes')
+    .select('*')
+    .order('created_at', { ascending: false })
+  
+  if (error) {
+    console.error('❌ Supabase quotes load error:', error)
+    throw new Error(`Supabase quotes load failed: ${error.message}`)
   }
-
-  try {
-    const { data, error } = await supabase
-      .from('quotes')
-      .select('*')
-      .order('created_at', { ascending: false })
-    
-    if (error) throw error
-    
-    return data?.map(item => transformQuoteFromDB(item as unknown as DatabaseQuote)) || []
-  } catch (error) {
-    console.error('❌ Error loading quotes, falling back to memory:', error)
-    return await memoryStorage_.quotes.findAll();
-  }
+  
+  console.log(`✅ Loaded ${data?.length || 0} quotes from Supabase ONLY`)
+  return data?.map(item => transformQuoteFromDB(item as unknown as DatabaseQuote)) || []
 }
 
 export async function saveQuote(quote: Quote) {
-  if (!isSupabaseAvailable()) {
-    console.log('💾 Using memory storage for quote');
-    await memoryStorage_.quotes.create(quote);
-    return;
+  console.log('🔥 PRODUCTION: Saving quote to ONLY Supabase');
+  
+  const dbQuote = transformQuoteToDB(quote)
+  
+  const { error } = await supabase
+    .from('quotes')
+    .upsert(dbQuote, { 
+      onConflict: 'id',
+      ignoreDuplicates: false 
+    })
+  
+  if (error) {
+    console.error('❌ Supabase quote error:', error)
+    throw new Error(`Supabase quote save failed: ${error.message}`)
   }
-
-  try {
-    const dbQuote = transformQuoteToDB(quote)
-    
-    const { error } = await supabase
-      .from('quotes')
-      .upsert(dbQuote, { 
-        onConflict: 'id',
-        ignoreDuplicates: false 
-      })
-    
-    if (error) throw error
-    console.log('✅ Quote saved to Supabase:', quote.id)
-  } catch (error) {
-    console.error('❌ Error saving quote, falling back to memory:', error)
-    await memoryStorage_.quotes.create(quote);
-  }
+  
+  console.log('✅ Quote saved to Supabase ONLY:', quote.id)
 }
 
 export async function deleteQuote(quoteId: string) {
-  if (!isSupabaseAvailable()) {
-    console.log('💾 Using memory storage for quote deletion');
-    await memoryStorage_.quotes.delete(quoteId);
-    return;
+  console.log('🔥 PRODUCTION: Deleting quote from ONLY Supabase');
+  
+  const { error } = await supabase
+    .from('quotes')
+    .delete()
+    .eq('id', quoteId)
+  
+  if (error) {
+    console.error('❌ Supabase quote delete error:', error)
+    throw new Error(`Supabase quote delete failed: ${error.message}`)
   }
-
-  try {
-    const { error } = await supabase
-      .from('quotes')
-      .delete()
-      .eq('id', quoteId)
-    
-    if (error) throw error
-    console.log('✅ Quote deleted from Supabase:', quoteId)
-  } catch (error) {
-    console.error('❌ Error deleting quote, falling back to memory:', error)
-    await memoryStorage_.quotes.delete(quoteId);
-  }
+  
+  console.log('✅ Quote deleted from Supabase ONLY:', quoteId)
 }
 
 // Transcripts
 export async function saveTranscript(sourceId: string, transcript: Transcript) {
-  if (!isSupabaseAvailable()) {
-    console.log('💾 Using memory storage for transcript');
-    await memoryStorage_.transcripts.save(transcript);
-    return;
+  console.log('🔥 PRODUCTION: Saving transcript to ONLY Supabase');
+  
+  const { error } = await supabase
+    .from('transcripts')
+    .upsert({
+      id: `transcript_${sourceId}`,
+      source_id: sourceId,
+      segments: transcript.segments,
+      words: transcript.words || [],
+      speakers: transcript.speakers || [],
+    }, { 
+      onConflict: 'source_id',
+      ignoreDuplicates: false 
+    })
+  
+  if (error) {
+    console.error('❌ Supabase transcript error:', error)
+    throw new Error(`Supabase transcript save failed: ${error.message}`)
   }
-
-  try {
-    const { error } = await supabase
-      .from('transcripts')
-      .upsert({
-        id: `transcript_${sourceId}`,
-        source_id: sourceId,
-        segments: transcript.segments,
-        words: transcript.words || [],
-        speakers: transcript.speakers || [],
-      }, { 
-        onConflict: 'source_id',
-        ignoreDuplicates: false 
-      })
-    
-    if (error) throw error
-    console.log('✅ Transcript saved to Supabase:', sourceId)
-  } catch (error) {
-    console.error('❌ Error saving transcript, falling back to memory:', error)
-    await memoryStorage_.transcripts.save(transcript);
-  }
+  
+  console.log('✅ Transcript saved to Supabase ONLY:', sourceId)
 }
 
 export async function loadTranscript(sourceId: string): Promise<Transcript | null> {
-  if (!isSupabaseAvailable()) {
-    console.log('💾 Loading transcript from memory storage');
-    return await memoryStorage_.transcripts.load(sourceId);
+  console.log('🔥 PRODUCTION: Loading transcript from ONLY Supabase');
+  
+  const { data, error } = await supabase
+    .from('transcripts')
+    .select('*')
+    .eq('source_id', sourceId)
+    .single()
+  
+  if (error) {
+    if (error.code === 'PGRST116') {
+      // No transcript found
+      console.log('ℹ️ No transcript found for:', sourceId)
+      return null
+    }
+    console.error('❌ Supabase transcript load error:', error)
+    throw new Error(`Supabase transcript load failed: ${error.message}`)
   }
-
-  try {
-    const { data, error } = await supabase
-      .from('transcripts')
-      .select('*')
-      .eq('source_id', sourceId)
-      .single()
-    
-    if (error) {
-      if (error.code === 'PGRST116') {
-        // No transcript found
-        return null
-      }
-      throw error
-    }
-    
-    return {
-      sourceId: data.source_id,
-      segments: data.segments || [],
-      words: data.words || [],
-      speakers: data.speakers || [],
-    }
-  } catch (error) {
-    console.error('❌ Error loading transcript, falling back to memory:', error)
-    return await memoryStorage_.transcripts.load(sourceId);
+  
+  console.log('✅ Transcript loaded from Supabase ONLY:', sourceId)
+  return {
+    sourceId: data.source_id,
+    segments: data.segments || [],
+    words: data.words || [],
+    speakers: data.speakers || [],
   }
 }
 
 export async function loadAllTranscripts(): Promise<Map<string, Transcript>> {
-  if (!isSupabaseAvailable()) {
-    console.log('💾 Loading all transcripts from memory storage');
-    const transcripts = await memoryStorage_.transcripts.findAll();
-    const transcriptsMap = new Map<string, Transcript>();
-    transcripts.forEach(transcript => {
-      transcriptsMap.set(transcript.sourceId, transcript);
-    });
-    return transcriptsMap;
+  console.log('🔥 PRODUCTION: Loading all transcripts from ONLY Supabase');
+  
+  const { data, error } = await supabase
+    .from('transcripts')
+    .select('*')
+  
+  if (error) {
+    console.error('❌ Supabase all transcripts load error:', error)
+    throw new Error(`Supabase all transcripts load failed: ${error.message}`)
   }
-
-  try {
-    const { data, error } = await supabase
-      .from('transcripts')
-      .select('*')
-    
-    if (error) throw error
-    
-    const transcriptsMap = new Map<string, Transcript>()
-    
-    data?.forEach(transcript => {
-      transcriptsMap.set(transcript.source_id, {
-        sourceId: transcript.source_id,
-        segments: transcript.segments || [],
-        words: transcript.words || [],
-        speakers: transcript.speakers || [],
-      })
+  
+  const transcriptsMap = new Map<string, Transcript>()
+  
+  data?.forEach(transcript => {
+    transcriptsMap.set(transcript.source_id, {
+      sourceId: transcript.source_id,
+      segments: transcript.segments || [],
+      words: transcript.words || [],
+      speakers: transcript.speakers || [],
     })
-    
-    return transcriptsMap
-  } catch (error) {
-    console.error('❌ Error loading transcripts, falling back to memory:', error)
-    const transcripts = await memoryStorage_.transcripts.findAll();
-    const transcriptsMap = new Map<string, Transcript>();
-    transcripts.forEach(transcript => {
-      transcriptsMap.set(transcript.sourceId, transcript);
-    });
-    return transcriptsMap;
-  }
+  })
+  
+  console.log(`✅ Loaded ${transcriptsMap.size} transcripts from Supabase ONLY`)
+  return transcriptsMap
 }
