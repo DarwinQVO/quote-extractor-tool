@@ -459,18 +459,35 @@ async function getYTDlpWrap() {
     console.log('🔧 Initializing yt-dlp-wrap...');
     
     try {
-      // Try system yt-dlp first (installed via Nixpkgs)
-      try {
-        console.log('🔍 Trying system yt-dlp binary...');
-        ytDlpWrap = new YTDlpWrap('yt-dlp');
-        await ytDlpWrap.execPromise(['--version']);
-        console.log('✅ Using system yt-dlp binary');
-      } catch (systemError) {
-        console.log('⚠️ System yt-dlp failed, using auto-download...');
-        // Fallback to auto-download
-        ytDlpWrap = new YTDlpWrap();
-        await ytDlpWrap.getBinaryVersion();
-        console.log('✅ Auto-downloaded yt-dlp binary ready');
+      // Try different yt-dlp paths in order of preference
+      const paths = [
+        '/tmp/ytdlp-env/bin/yt-dlp',  // Our venv installation
+        '/usr/local/bin/yt-dlp',     // Symlinked version
+        'yt-dlp',                    // System PATH
+        undefined                    // Auto-download fallback
+      ];
+      
+      for (const path of paths) {
+        try {
+          if (path) {
+            console.log(`🔍 Trying yt-dlp at: ${path}`);
+            ytDlpWrap = new YTDlpWrap(path);
+          } else {
+            console.log('🔍 Trying auto-download yt-dlp...');
+            ytDlpWrap = new YTDlpWrap();
+          }
+          
+          const version = await ytDlpWrap.execPromise(['--version']);
+          console.log(`✅ Using yt-dlp version: ${version.trim()} at ${path || 'auto-download'}`);
+          break;
+        } catch (error) {
+          console.log(`⚠️ Failed with ${path || 'auto-download'}: ${error instanceof Error ? error.message : error}`);
+          if (path === undefined) {
+            // Last resort failed
+            throw error;
+          }
+          continue;
+        }
       }
     } catch (error) {
       console.error('❌ Failed to initialize yt-dlp-wrap:', error);
