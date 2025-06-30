@@ -10,7 +10,14 @@ import path from 'path';
 import { tmpdir } from 'os';
 import { spawn } from 'child_process';
 
-import { setProgress, deleteProgress } from '@/lib/transcription-progress';
+import { 
+  initializeProgress, 
+  updateProgress, 
+  markProgressError, 
+  deleteProgress,
+  setProgress // Legacy compatibility
+} from '@/lib/persistent-progress';
+import { isSystemReadyForTranscription } from '@/lib/production-health';
 import { YouTubeDLInfo } from '@/lib/youtube-types';
 
 // Initialize OpenAI client only when needed to avoid build-time errors
@@ -1432,8 +1439,31 @@ export async function POST(request: NextRequest) {
     console.error('❌ Missing required fields:', { sourceId: !!sourceId, url: !!url });
     return NextResponse.json({ error: 'Missing sourceId or url' }, { status: 400 });
   }
+
+  // 🏥 ENTERPRISE HEALTH CHECK - Critical for Railway Production
+  console.log('🏥 Performing system health check before transcription...');
+  const { ready, reason, health } = await isSystemReadyForTranscription();
+  
+  if (!ready) {
+    console.error('❌ System health check failed:', reason);
+    console.error('📋 Health details:', health);
+    
+    await initializeProgress(sourceId);
+    await markProgressError(sourceId, reason || 'System health check failed', 'initializing');
+    
+    return NextResponse.json({ 
+      error: 'System not ready for transcription',
+      details: reason,
+      healthStatus: health.overall,
+      timestamp: health.timestamp
+    }, { status: 503 });
+  }
+  
+  console.log('✅ System health check passed:', health.overall);
   
   try {
+    // 📊 Initialize persistent progress tracking
+    await initializeProgress(sourceId);
     console.log('🔍 Checking OpenAI client...');
     try {
       const openaiTest = getOpenAIClient();
@@ -1462,7 +1492,7 @@ export async function POST(request: NextRequest) {
       });
     }
     
-    setProgress(sourceId, 5);
+    await updateProgress(sourceId, 5, 'initializing', 'Parsing YouTube URL and preparing...');
     
     // Extract video ID from URL
     const videoIdMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/);
@@ -1474,7 +1504,7 @@ export async function POST(request: NextRequest) {
     const tempDir = tmpdir();
     const audioPath = path.join(tempDir, `${sourceId}_${videoId}.%(ext)s`);
     
-    setProgress(sourceId, 10);
+    await updateProgress(sourceId, 10, 'extracting', 'Initializing yt-dlp and checking video availability...');
     
     console.log('=== TRANSCRIPTION DEBUG ===');
     console.log('Video ID:', videoId);
@@ -2287,12 +2317,19 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('=== MAIN TRANSCRIPTION ERROR ===');
     console.error('Error:', error);
-    deleteProgress(sourceId);
     
-    // More detailed error response
+    // Enhanced error tracking with persistent progress
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     const isApiKeyError = errorMessage.includes('OPENAI_API_KEY');
     const isYtDlpError = errorMessage.includes('yt-dlp') || errorMessage.includes('YouTube');
+    const isProxyError = errorMessage.includes('proxy') || errorMessage.includes('403') || errorMessage.includes('429');
+    
+    // Determine error stage based on error type
+    let errorStage: 'initializing' | 'extracting' | 'transcribing' | 'enhancing' | 'saving' = 'initializing';
+    if (isYtDlpError || isProxyError) errorStage = 'extracting';
+    else if (isApiKeyError || errorMessage.includes('whisper')) errorStage = 'transcribing';
+    
+    await markProgressError(sourceId, errorMessage, errorStage);
     
     return NextResponse.json(
       { 

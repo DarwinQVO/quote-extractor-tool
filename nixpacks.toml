@@ -1,28 +1,61 @@
 [phases.setup]
-nixPkgs = ["nodejs_20", "python3", "python3Packages.pip", "python3Packages.setuptools", "ffmpeg", "yt-dlp"]
+nixPkgs = [
+  "nodejs_20", 
+  "python3", 
+  "python3Packages.pip", 
+  "python3Packages.setuptools", 
+  "ffmpeg", 
+  "yt-dlp",
+  "which",
+  "curl",
+  "ca-certificates"
+]
 
 [phases.install]
 cmds = [
-  "npm ci"
+  "npm ci --only=production"
 ]
 
 [phases.build]
-# Just build - use system yt-dlp from nixpkgs
+# Enhanced build with comprehensive validation
 cmds = [
-  "echo '🔍 Checking yt-dlp from nixpkgs...'",
-  "which yt-dlp && yt-dlp --version || echo 'yt-dlp not found'",
-  "echo '🏗️ Building application...'",
-  "npm run build"
+  "echo '🔍 ENTERPRISE BUILD VALIDATION...'",
+  "echo '📦 Checking system packages...'",
+  "which node && node --version",
+  "which npm && npm --version",
+  "which python3 && python3 --version", 
+  "which ffmpeg && ffmpeg -version | head -1",
+  "which yt-dlp && yt-dlp --version",
+  "echo '🌐 Network connectivity test...'",
+  "curl -s https://api.openai.com > /dev/null && echo 'OpenAI reachable ✅' || echo 'OpenAI unreachable ❌'",
+  "curl -s https://www.youtube.com > /dev/null && echo 'YouTube reachable ✅' || echo 'YouTube unreachable ❌'",
+  "echo '🏗️ Building Next.js application...'",
+  "npm run build",
+  "echo '✅ Build completed successfully'"
 ]
 
 [start]
-# Use standard Next.js start command
+# Production-optimized start command
 cmd = "npm run start"
 
 [variables]
-YOUTUBE_DL_SKIP_PYTHON_CHECK = "1"
+# Core production settings
 NODE_ENV = "production"
-# Allow yt-dlp-wrap to download binaries
+NEXT_TELEMETRY_DISABLED = "1"
+
+# YouTube/yt-dlp configuration
+YOUTUBE_DL_SKIP_PYTHON_CHECK = "1"
+YOUTUBE_DL_NO_YOUTUBE_CHANNEL_REDIRECT = "1"
 YTDLP_BINARY_DOWNLOAD = "1"
-# Set Python path
+
+# System paths
 PYTHONPATH = "/usr/bin/python3"
+FFMPEG_PATH = "/usr/bin/ffmpeg"
+FFPROBE_PATH = "/usr/bin/ffprobe"
+
+# Performance optimizations
+MALLOC_ARENA_MAX = "2"
+NODE_OPTIONS = "--max-old-space-size=512"
+
+# Railway optimizations
+RAILWAY_STATIC_URL = "true"

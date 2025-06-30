@@ -52,6 +52,15 @@ export function useTranscription(sourceId: string | null) {
       eventSource.onmessage = (event) => {
         const data = JSON.parse(event.data);
         setTranscriptionProgress(sourceId, data.progress);
+        
+        // Update source status with enhanced progress info
+        if (data.status && data.stage) {
+          updateSource(sourceId, { 
+            transcriptStatus: data.status === 'completed' ? 'ready' : 'transcribing',
+            transcriptStage: data.stage,
+            transcriptMessage: data.message
+          });
+        }
       };
       
       eventSource.onerror = () => {
