@@ -67,8 +67,8 @@ export function useTranscription(sourceId: string | null) {
         eventSource.close();
       };
       
-      // Start transcription with stealth endpoint (bypasses YouTube bot detection)
-      const response = await fetch('/api/transcribe-stealth', {
+      // Start transcription with ultimate endpoint (no proxy, maximum compatibility)
+      const response = await fetch('/api/transcribe-ultimate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sourceId, url: source.url }),
