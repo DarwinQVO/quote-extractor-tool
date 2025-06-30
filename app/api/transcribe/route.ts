@@ -1402,7 +1402,8 @@ async function getYTDlpWrap() {
 }
 
 export async function POST(request: NextRequest) {
-  console.log('🚀 Transcription request started - BUILD VERSION 2025-01-30-V2');
+  const BUILD_ID = `2025-01-30-FORCE-REBUILD-${Date.now()}`;
+  console.log(`🚀 TRANSCRIPTION REQUEST STARTED - BUILD: ${BUILD_ID}`);
   
   // DEBUG: Check proxy configuration
   const proxyConfig = process.env.YTDLP_PROXY;

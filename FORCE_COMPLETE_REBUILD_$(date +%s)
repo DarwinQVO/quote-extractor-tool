@@ -1,0 +1,7 @@
+CRITICAL: Railway cache invalidation required
+Timestamp: $(date)
+Build ID: force-rebuild-ios-enterprise-strategy
+Reason: Railway using old minified code without iOS Enterprise strategy
+
+This file forces Railway to completely rebuild the application
+with the new iOS Enterprise strategy that works locally.

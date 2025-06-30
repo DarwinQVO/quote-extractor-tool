@@ -15,7 +15,11 @@ const nextConfig: NextConfig = {
   // Prevent API routes from being pre-rendered during build
   trailingSlash: false,
   generateBuildId: async () => {
-    return 'build-' + Date.now();
+    return `force-rebuild-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  },
+  // Force complete cache invalidation
+  experimental: {
+    isrMemoryCacheSize: 0,
   },
 };
 
