@@ -1032,8 +1032,25 @@ async function downloadLongVideoWithYtDlp(videoId: string, sourceId: string, tem
   
   const url = `https://www.youtube.com/watch?v=${videoId}`;
   
-  // Use our most reliable strategy for long videos
+  // Use our most reliable strategy for long videos (PROXY FIRST)
   const longVideoStrategies = [
+    {
+      name: 'Bright Data Proxy',
+      path: path.join(tempDir, `${sourceId}_${videoId}_long_proxy.m4a`),
+      args: [
+        url,
+        '--format', 'bestaudio[ext=m4a]/bestaudio[ext=mp4]/bestaudio',
+        '--extract-audio',
+        '--audio-format', 'm4a',
+        '--proxy', process.env.YTDLP_PROXY || 'http://brd-customer-hl_16699f5c-zone-residential_proxy1:j24ifit7dkc6@brd.superproxy.io:33335',
+        '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        '--extractor-args', 'youtube:player_client=web',
+        '--geo-bypass-country', 'US',
+        '--throttled-rate', '2M', // Conservative for long videos
+        '--sleep-interval', '5',
+        '--max-sleep-interval', '15'
+      ]
+    },
     {
       name: 'Android Enterprise',
       path: path.join(tempDir, `${sourceId}_${videoId}_long_android.m4a`),
@@ -1431,17 +1448,18 @@ export async function POST(request: NextRequest) {
             '--max-sleep-interval', '6'
           ]
         },
-        // E3: Proxy residencial rotativo
+        // E3: Bright Data proxy residencial  
         {
-          name: 'E3_Proxy_Residencial',
+          name: 'E3_BrightData_Proxy',
           args: [
             url, '--dump-json', '--no-warnings', '--skip-download',
             '-f', 'bestaudio',
-            '--proxy', process.env.YTDLP_PROXY || 'http://proxy-residential.example.com:8080',
-            '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            '--sleep-interval', '4',
-            '--max-sleep-interval', '12',
-            '--extractor-args', 'youtube:player_client=web'
+            '--proxy', process.env.YTDLP_PROXY || 'http://brd-customer-hl_16699f5c-zone-residential_proxy1:j24ifit7dkc6@brd.superproxy.io:33335',
+            '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            '--sleep-interval', '2',
+            '--max-sleep-interval', '8',
+            '--extractor-args', 'youtube:player_client=web',
+            '--geo-bypass-country', 'US'
           ]
         },
         // E4: WireGuard túnel doméstico
@@ -1515,8 +1533,13 @@ export async function POST(request: NextRequest) {
       // E1-E4 RESILIENT RETRY SYSTEM with exponential back-off
       let successfulStrategy = null;
       
-      // Try E1-E4 strategies sequentially (prioritized order)
-      const prioritizedStrategies = resilienceStrategies;
+      // Try E1-E4 strategies sequentially (PROXY FIRST for maximum success)
+      const prioritizedStrategies = [
+        resilienceStrategies[2], // E3: Bright Data Proxy FIRST  
+        resilienceStrategies[0], // E1: Cookies + UA
+        resilienceStrategies[1], // E2: PO-Token
+        resilienceStrategies[3]  // E4: WireGuard
+      ];
       
       for (let strategyIndex = 0; strategyIndex < prioritizedStrategies.length; strategyIndex++) {
         const strategy = prioritizedStrategies[strategyIndex];
@@ -1640,6 +1663,23 @@ export async function POST(request: NextRequest) {
 
         // Create advanced download strategies with same anti-detection
         const downloadStrategies = [
+          // Strategy 0: Bright Data Proxy (HIGHEST PRIORITY)
+          {
+            name: 'E3_BrightData_Proxy',
+            path: actualAudioPath.replace('.webm', '_proxy.m4a'),
+            args: [
+              url,
+              '--format', 'bestaudio[ext=m4a]/bestaudio[ext=mp4]/bestaudio',
+              '--extract-audio',
+              '--audio-format', 'm4a',
+              '--proxy', process.env.YTDLP_PROXY || 'http://brd-customer-hl_16699f5c-zone-residential_proxy1:j24ifit7dkc6@brd.superproxy.io:33335',
+              '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              '--extractor-args', 'youtube:player_client=web',
+              '--geo-bypass-country', 'US',
+              '--sleep-interval', '3',
+              '--max-sleep-interval', '9'
+            ]
+          },
           // Strategy 1: Android app download
           {
             name: 'Android App',
