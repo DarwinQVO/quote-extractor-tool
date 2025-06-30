@@ -23,12 +23,20 @@ export async function GET(request: NextRequest) {
   try {
     const url = `https://www.youtube.com/watch?v=${videoId}`;
     
-    // Get real metadata using yt-dlp
+    // Get real metadata using yt-dlp with anti-detection
     const ytdl = await getYTDlpWrap();
     const info = await ytdl.execPromise([
       url,
       '--dump-json',
-      '--no-warnings'
+      '--no-warnings',
+      '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      '--add-header', 'Accept-Language:en-US,en;q=0.9',
+      '--add-header', 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+      '--add-header', 'Accept-Encoding:gzip, deflate, br',
+      '--add-header', 'DNT:1',
+      '--add-header', 'Connection:keep-alive',
+      '--add-header', 'Upgrade-Insecure-Requests:1',
+      '--extractor-args', 'youtube:player_client=web'
     ]).then(JSON.parse);
     
     const videoInfo = typeof info === 'object' ? info as YouTubeDLInfo : null;

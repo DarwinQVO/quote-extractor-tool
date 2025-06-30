@@ -146,7 +146,15 @@ async function downloadLowerQualityAudio(videoId: string, sourceId: string): Pro
       '--extract-audio',
       '--audio-format', 'webm',
       '--audio-quality', '9', // Lowest quality
-      '-o', audioPath
+      '-o', audioPath,
+      '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      '--add-header', 'Accept-Language:en-US,en;q=0.9',
+      '--add-header', 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+      '--add-header', 'Accept-Encoding:gzip, deflate, br',
+      '--add-header', 'DNT:1',
+      '--add-header', 'Connection:keep-alive',
+      '--add-header', 'Upgrade-Insecure-Requests:1',
+      '--extractor-args', 'youtube:player_client=web'
     ]);
     
     // Check file size
@@ -508,13 +516,21 @@ export async function POST(request: NextRequest) {
       
       setProgress(sourceId, 15);
       
-      // Get video info first
+      // Get video info first with enhanced anti-detection
       console.log('Getting video info...');
       const videoInfo = await ytdl.execPromise([
         url,
         '--dump-json',
         '--no-warnings',
-        '--skip-download'
+        '--skip-download',
+        '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        '--add-header', 'Accept-Language:en-US,en;q=0.9',
+        '--add-header', 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        '--add-header', 'Accept-Encoding:gzip, deflate, br',
+        '--add-header', 'DNT:1',
+        '--add-header', 'Connection:keep-alive',
+        '--add-header', 'Upgrade-Insecure-Requests:1',
+        '--extractor-args', 'youtube:player_client=web'
       ]).then(JSON.parse);
       
       const parsedInfo = typeof videoInfo === 'object' ? videoInfo as YouTubeDLInfo : null;
@@ -560,7 +576,15 @@ export async function POST(request: NextRequest) {
             '--extract-audio',
             '--audio-format', 'm4a',
             '--no-warnings',
-            '--verbose'
+            '--verbose',
+            '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            '--add-header', 'Accept-Language:en-US,en;q=0.9',
+            '--add-header', 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            '--add-header', 'Accept-Encoding:gzip, deflate, br',
+            '--add-header', 'DNT:1',
+            '--add-header', 'Connection:keep-alive',
+            '--add-header', 'Upgrade-Insecure-Requests:1',
+            '--extractor-args', 'youtube:player_client=web'
           ]);
           console.log('M4A download output:', m4aResult);
           
@@ -594,7 +618,15 @@ export async function POST(request: NextRequest) {
               '--audio-format', 'mp3',
               '--output', mp3Path,
               '--no-warnings',
-              '--verbose'
+              '--verbose',
+              '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              '--add-header', 'Accept-Language:en-US,en;q=0.9',
+              '--add-header', 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+              '--add-header', 'Accept-Encoding:gzip, deflate, br',
+              '--add-header', 'DNT:1',
+              '--add-header', 'Connection:keep-alive',
+              '--add-header', 'Upgrade-Insecure-Requests:1',
+              '--extractor-args', 'youtube:player_client=web'
             ]);
             console.log('MP3 extract output:', mp3Result);
             
@@ -624,7 +656,10 @@ export async function POST(request: NextRequest) {
             const formats = await ytdl.execPromise([
               url,
               '--list-formats',
-              '--no-warnings'
+              '--no-warnings',
+              '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              '--add-header', 'Accept-Language:en-US,en;q=0.9',
+              '--extractor-args', 'youtube:player_client=web'
             ]);
             console.log('Available formats:', formats);
             
@@ -644,7 +679,15 @@ export async function POST(request: NextRequest) {
                 '--format', formatId,
                 '--output', actualAudioPath,
                 '--no-warnings',
-                '--verbose'
+                '--verbose',
+                '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                '--add-header', 'Accept-Language:en-US,en;q=0.9',
+                '--add-header', 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                '--add-header', 'Accept-Encoding:gzip, deflate, br',
+                '--add-header', 'DNT:1',
+                '--add-header', 'Connection:keep-alive',
+                '--add-header', 'Upgrade-Insecure-Requests:1',
+                '--extractor-args', 'youtube:player_client=web'
               ]);
               console.log('Format ID download output:', formatResult);
               
