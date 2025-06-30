@@ -94,30 +94,48 @@ export function useTranscription(sourceId: string | null) {
           transcriptStatus: 'ready'
         });
         
-        // Load the transcript that was just saved
+        // Load the transcript that was just saved - retry logic for timing issues
         console.log('🔍 Loading transcript from API for sourceId:', sourceId);
-        const transcriptResponse = await fetch(`/api/transcripts/${sourceId}`);
-        console.log('📡 Transcript API response status:', transcriptResponse.status);
+        let transcriptLoaded = false;
+        let attempts = 0;
+        const maxAttempts = 5;
         
-        if (transcriptResponse.ok) {
-          const transcriptData = await transcriptResponse.json();
-          console.log('✅ Transcript data loaded:', {
-            segments: transcriptData.segments?.length || 0,
-            words: transcriptData.words?.length || 0,
-            speakers: transcriptData.speakers?.length || 0
-          });
+        while (!transcriptLoaded && attempts < maxAttempts) {
+          attempts++;
+          console.log(`📡 Transcript load attempt ${attempts}/${maxAttempts} for sourceId:`, sourceId);
           
-          setTranscript(sourceId, {
-            sourceId,
-            segments: transcriptData.segments || [],
-            words: transcriptData.words || [],
-            speakers: transcriptData.speakers || [],
-          });
+          const transcriptResponse = await fetch(`/api/transcripts/${sourceId}`);
+          console.log('📡 Transcript API response status:', transcriptResponse.status);
           
-          console.log('✅ Transcript set in store for sourceId:', sourceId);
-        } else {
-          const errorText = await transcriptResponse.text();
-          console.error('❌ Failed to load transcript:', errorText);
+          if (transcriptResponse.ok) {
+            const transcriptData = await transcriptResponse.json();
+            console.log('✅ Transcript data loaded:', {
+              segments: transcriptData.segments?.length || 0,
+              words: transcriptData.words?.length || 0,
+              speakers: transcriptData.speakers?.length || 0
+            });
+            
+            setTranscript(sourceId, {
+              sourceId,
+              segments: transcriptData.segments || [],
+              words: transcriptData.words || [],
+              speakers: transcriptData.speakers || [],
+            });
+            
+            console.log('✅ Transcript set in store for sourceId:', sourceId);
+            transcriptLoaded = true;
+          } else {
+            const errorText = await transcriptResponse.text();
+            console.log(`⚠️ Transcript not ready yet (attempt ${attempts}):`, errorText);
+            
+            if (attempts < maxAttempts) {
+              // Wait 2 seconds before retry
+              console.log(`⏳ Waiting 2s before retry...`);
+              await new Promise(resolve => setTimeout(resolve, 2000));
+            } else {
+              console.error('❌ Failed to load transcript after all attempts:', errorText);
+            }
+          }
         }
         
         toast({

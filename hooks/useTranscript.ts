@@ -34,7 +34,10 @@ export function useTranscript(sourceId: string | null) {
     queryKey: ['transcript', sourceId],
     queryFn: () => sourceId ? fetchTranscript(sourceId) : null,
     enabled: !!sourceId,
-    staleTime: 1000 * 60 * 60 * 24, // 24 hours
+    staleTime: 1000 * 60 * 5, // 5 minutes (shorter for development)
     gcTime: 1000 * 60 * 60 * 24 * 7, // 7 days
+    retry: 3, // Retry failed requests
+    retryDelay: 2000, // 2 second delay between retries
+    refetchOnWindowFocus: true, // Refetch when window gains focus
   });
 }
