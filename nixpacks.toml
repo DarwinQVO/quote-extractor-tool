@@ -1,61 +1,21 @@
 [phases.setup]
-nixPkgs = [
-  "nodejs_20", 
-  "python3", 
-  "python3Packages.pip", 
-  "python3Packages.setuptools", 
-  "ffmpeg", 
-  "yt-dlp",
-  "which",
-  "curl",
-  "cacert"
-]
+# Minimal, tested package set to avoid conflicts
+nixPkgs = ["nodejs_20", "python3", "ffmpeg", "yt-dlp"]
 
 [phases.install]
-cmds = [
-  "npm ci --only=production"
-]
+cmds = ["npm ci"]
 
 [phases.build]
-# Enhanced build with comprehensive validation
 cmds = [
-  "echo '🔍 ENTERPRISE BUILD VALIDATION...'",
-  "echo '📦 Checking system packages...'",
-  "which node && node --version",
-  "which npm && npm --version",
-  "which python3 && python3 --version", 
-  "which ffmpeg && ffmpeg -version | head -1",
-  "which yt-dlp && yt-dlp --version",
-  "echo '🌐 Network connectivity test...'",
-  "curl -s https://api.openai.com > /dev/null && echo 'OpenAI reachable ✅' || echo 'OpenAI unreachable ❌'",
-  "curl -s https://www.youtube.com > /dev/null && echo 'YouTube reachable ✅' || echo 'YouTube unreachable ❌'",
   "echo '🏗️ Building Next.js application...'",
-  "npm run build",
-  "echo '✅ Build completed successfully'"
+  "npm run build"
 ]
 
 [start]
-# Production-optimized start command
 cmd = "npm run start"
 
 [variables]
-# Core production settings
+# Core settings
 NODE_ENV = "production"
-NEXT_TELEMETRY_DISABLED = "1"
-
-# YouTube/yt-dlp configuration
 YOUTUBE_DL_SKIP_PYTHON_CHECK = "1"
-YOUTUBE_DL_NO_YOUTUBE_CHANNEL_REDIRECT = "1"
 YTDLP_BINARY_DOWNLOAD = "1"
-
-# System paths
-PYTHONPATH = "/usr/bin/python3"
-FFMPEG_PATH = "/usr/bin/ffmpeg"
-FFPROBE_PATH = "/usr/bin/ffprobe"
-
-# Performance optimizations
-MALLOC_ARENA_MAX = "2"
-NODE_OPTIONS = "--max-old-space-size=512"
-
-# Railway optimizations
-RAILWAY_STATIC_URL = "true"
