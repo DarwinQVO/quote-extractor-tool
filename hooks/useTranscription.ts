@@ -67,8 +67,8 @@ export function useTranscription(sourceId: string | null) {
         eventSource.close();
       };
       
-      // Start transcription
-      const response = await fetch('/api/transcribe', {
+      // Start transcription with working endpoint
+      const response = await fetch('/api/transcribe-working', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sourceId, url: source.url }),
