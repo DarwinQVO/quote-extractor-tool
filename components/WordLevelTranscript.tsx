@@ -44,7 +44,7 @@ export function WordLevelTranscript({
   // Note: Color initialization happens automatically with the simple system
 
   // If we don't have word-level data, fallback to segment-based display
-  const hasWordLevelData = words.length > 0;
+  const hasWordLevelData = words && words.length > 0;
 
   // Get active word index
   const getActiveWordIndex = () => {
@@ -240,6 +240,11 @@ export function WordLevelTranscript({
 
   // Optimized grouping system - reduces visual jumps and improves flow
   const optimizedGroups = useMemo(() => {
+    // Safety check
+    if (!segments || segments.length === 0) {
+      return [];
+    }
+    
     if (!hasWordLevelData) {
       // For segment-only mode, use intelligent grouping
       return groupTranscriptSegments(segments).map(groupedSegment => ({
@@ -250,11 +255,11 @@ export function WordLevelTranscript({
     }
     
     // For word-level mode, use optimized word-segment grouping
-    return groupWordsByOptimizedSegments(words, segments).map((group, groupIndex) => ({
+    return groupWordsByOptimizedSegments(words || [], segments).map((group, groupIndex) => ({
       groupedSegment: group.segment,
       words: group.words.map((word, wordIndex) => ({ 
         word, 
-        index: words.findIndex(w => w === word) 
+        index: words && words.length > 0 ? words.findIndex(w => w === word) : wordIndex 
       })),
       speakerColors: { backgroundColor: '', textColor: '', borderColor: '', accentColor: '' }
     }));

@@ -78,7 +78,46 @@ export function useTranscription(sourceId: string | null) {
         throw new Error('Transcription failed');
       }
       
-      const { segments, words, speakers, cached } = await response.json();
+      const result = await response.json();
+      
+      // Handle new video-processor response format
+      if (result.video && result.transcript) {
+        console.log('✅ Video processed successfully:', result.video.title);
+        
+        // Update source with metadata
+        updateSource(sourceId, {
+          title: result.video.title,
+          channel: result.video.channel,
+          duration: result.video.duration,
+          thumbnail: result.video.thumbnail,
+          status: 'ready',
+          transcriptStatus: 'ready'
+        });
+        
+        // Load the transcript that was just saved
+        const transcriptResponse = await fetch(`/api/transcripts/${sourceId}`);
+        if (transcriptResponse.ok) {
+          const transcriptData = await transcriptResponse.json();
+          
+          setTranscript(sourceId, {
+            sourceId,
+            segments: transcriptData.segments || [],
+            words: transcriptData.words || [],
+            speakers: transcriptData.speakers || [],
+          });
+        }
+        
+        toast({
+          title: 'Processing complete',
+          description: `Video "${result.video.title}" has been processed successfully`,
+        });
+        
+        eventSource.close();
+        return;
+      }
+      
+      // Handle legacy response format
+      const { segments, words, speakers, cached } = result;
       
       // Store transcript
       setTranscript(sourceId, {
