@@ -133,44 +133,93 @@ async function splitAudioIntoChunks(audioPath: string, chunkDurationMinutes: num
 async function downloadLowerQualityAudio(videoId: string, sourceId: string): Promise<string> {
   const tempDir = tmpdir();
   const ytDlp = await getYTDlpWrap();
+  const url = `https://www.youtube.com/watch?v=${videoId}`;
   
   console.log('🔧 Downloading lower quality audio for large file...');
   
-  // Try to download lower quality format (opus/webm at lower bitrate)
-  const audioPath = path.join(tempDir, `${sourceId}_${videoId}_low.webm`);
-  
-  try {
-    await ytDlp.execPromise([
-      `https://www.youtube.com/watch?v=${videoId}`,
-      '-f', 'worstaudio[ext=webm]/worst[ext=webm]/worstaudio',
-      '--extract-audio',
-      '--audio-format', 'webm',
-      '--audio-quality', '9', // Lowest quality
-      '-o', audioPath,
-      '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      '--add-header', 'Accept-Language:en-US,en;q=0.9',
-      '--add-header', 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-      '--add-header', 'Accept-Encoding:gzip, deflate, br',
-      '--add-header', 'DNT:1',
-      '--add-header', 'Connection:keep-alive',
-      '--add-header', 'Upgrade-Insecure-Requests:1',
-      '--extractor-args', 'youtube:player_client=web'
-    ]);
-    
-    // Check file size
-    const stats = await fs.stat(audioPath);
-    console.log(`Low quality audio downloaded: ${stats.size} bytes`);
-    
-    const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
-    if (stats.size > MAX_FILE_SIZE) {
-      throw new Error('Even low quality audio exceeds 25MB limit');
+  // Use multiple strategies for low quality download too
+  const lowQualityStrategies = [
+    {
+      name: 'Mobile Low Quality',
+      path: path.join(tempDir, `${sourceId}_${videoId}_mobile_low.webm`),
+      args: [
+        url,
+        '-f', 'worstaudio[ext=webm]/worst[ext=webm]/worstaudio',
+        '--extract-audio',
+        '--audio-format', 'webm',
+        '--audio-quality', '9',
+        '--extractor-args', 'youtube:player_client=android',
+        '--user-agent', 'com.google.android.youtube/17.36.4 (Linux; U; Android 12; GB) gzip'
+      ]
+    },
+    {
+      name: 'TV Low Quality',
+      path: path.join(tempDir, `${sourceId}_${videoId}_tv_low.webm`),
+      args: [
+        url,
+        '-f', 'worstaudio[ext=webm]/worst[ext=webm]/worstaudio',
+        '--extract-audio',
+        '--audio-format', 'webm',
+        '--audio-quality', '9',
+        '--extractor-args', 'youtube:player_client=tv_embedded',
+        '--user-agent', 'Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.0) AppleWebKit/537.36 (KHTML, like Gecko) 85.0.4183.93/6.0 TV Safari/537.36'
+      ]
+    },
+    {
+      name: 'iOS Low Quality',
+      path: path.join(tempDir, `${sourceId}_${videoId}_ios_low.webm`),
+      args: [
+        url,
+        '-f', 'worstaudio[ext=webm]/worst[ext=webm]/worstaudio',
+        '--extract-audio',
+        '--audio-format', 'webm',
+        '--audio-quality', '9',
+        '--extractor-args', 'youtube:player_client=ios',
+        '--user-agent', 'com.google.ios.youtube/17.36.4 (iPhone14,3; U; CPU iOS 15_6 like Mac OS X)'
+      ]
     }
-    
-    return audioPath;
-  } catch (error) {
-    console.error('Low quality download failed:', error);
-    throw error;
+  ];
+  
+  let lastError: Error | null = null;
+  
+  for (const strategy of lowQualityStrategies) {
+    try {
+      console.log(`Trying ${strategy.name} for low quality download...`);
+      
+      const downloadArgs = [
+        ...strategy.args,
+        '-o', strategy.path,
+        '--no-warnings'
+      ];
+      
+      await ytDlp.execPromise(downloadArgs);
+      
+      // Check file size
+      const stats = await fs.stat(strategy.path);
+      console.log(`${strategy.name} downloaded: ${stats.size} bytes`);
+      
+      const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
+      if (stats.size > MAX_FILE_SIZE) {
+        console.log(`${strategy.name} exceeds size limit, trying next strategy...`);
+        await fs.unlink(strategy.path).catch(() => {});
+        continue;
+      }
+      
+      if (stats.size > 0) {
+        console.log(`✅ ${strategy.name} succeeded`);
+        return strategy.path;
+      } else {
+        throw new Error(`${strategy.name} file is empty`);
+      }
+    } catch (error) {
+      console.log(`❌ ${strategy.name} failed:`, error instanceof Error ? error.message : error);
+      lastError = error instanceof Error ? error : new Error(String(error));
+      continue;
+    }
   }
+  
+  console.error('All low quality download strategies failed');
+  throw lastError || new Error('All low quality download strategies failed');
 }
 
 // Function to get audio duration using ffprobe
@@ -516,22 +565,123 @@ export async function POST(request: NextRequest) {
       
       setProgress(sourceId, 15);
       
-      // Get video info first with enhanced anti-detection
-      console.log('Getting video info...');
-      const videoInfo = await ytdl.execPromise([
-        url,
-        '--dump-json',
-        '--no-warnings',
-        '--skip-download',
-        '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        '--add-header', 'Accept-Language:en-US,en;q=0.9',
-        '--add-header', 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        '--add-header', 'Accept-Encoding:gzip, deflate, br',
-        '--add-header', 'DNT:1',
-        '--add-header', 'Connection:keep-alive',
-        '--add-header', 'Upgrade-Insecure-Requests:1',
-        '--extractor-args', 'youtube:player_client=web'
-      ]).then(JSON.parse);
+      // Get video info with multiple fallback strategies
+      console.log('Getting video info with enterprise anti-detection...');
+      
+      let videoInfo = null;
+      const infoStrategies = [
+        // Strategy 1: Mobile client (often less restricted)
+        {
+          name: 'Mobile Client',
+          args: [
+            url, '--dump-json', '--no-warnings', '--skip-download',
+            '--extractor-args', 'youtube:player_client=android',
+            '--user-agent', 'com.google.android.youtube/17.36.4 (Linux; U; Android 12; GB) gzip'
+          ]
+        },
+        // Strategy 2: TV client (very reliable)
+        {
+          name: 'TV Client', 
+          args: [
+            url, '--dump-json', '--no-warnings', '--skip-download',
+            '--extractor-args', 'youtube:player_client=tv_embedded',
+            '--user-agent', 'Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.0) AppleWebKit/537.36 (KHTML, like Gecko) 85.0.4183.93/6.0 TV Safari/537.36'
+          ]
+        },
+        // Strategy 3: iOS client
+        {
+          name: 'iOS Client',
+          args: [
+            url, '--dump-json', '--no-warnings', '--skip-download',
+            '--extractor-args', 'youtube:player_client=ios',
+            '--user-agent', 'com.google.ios.youtube/17.36.4 (iPhone14,3; U; CPU iOS 15_6 like Mac OS X)'
+          ]
+        },
+        // Strategy 4: Web with bypass
+        {
+          name: 'Web Bypass',
+          args: [
+            url, '--dump-json', '--no-warnings', '--skip-download',
+            '--extractor-args', 'youtube:player_client=web,youtube:bypass=oauth',
+            '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+          ]
+        },
+        // Strategy 5: Embedded player
+        {
+          name: 'Embedded',
+          args: [
+            url, '--dump-json', '--no-warnings', '--skip-download',
+            '--extractor-args', 'youtube:player_client=web_embedded',
+            '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+          ]
+        }
+      ];
+
+      // Intelligent retry system with exponential backoff
+      let successfulStrategy = null;
+      for (let strategyIndex = 0; strategyIndex < infoStrategies.length; strategyIndex++) {
+        const strategy = infoStrategies[strategyIndex];
+        const maxRetries = 3;
+        let retryCount = 0;
+        
+        while (retryCount < maxRetries) {
+          try {
+            const attempt = retryCount + 1;
+            console.log(`Trying ${strategy.name} strategy (attempt ${attempt}/${maxRetries})...`);
+            
+            // Add timeout to prevent hanging
+            const timeoutMs = 30000; // 30 seconds
+            const timeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error(`${strategy.name} timeout after ${timeoutMs}ms`)), timeoutMs)
+            );
+            
+            const execPromise = ytdl.execPromise(strategy.args);
+            const result = await Promise.race([execPromise, timeoutPromise]) as string;
+            
+            videoInfo = JSON.parse(result);
+            successfulStrategy = strategy.name;
+            console.log(`✅ ${strategy.name} strategy succeeded on attempt ${attempt}!`);
+            break;
+          } catch (error) {
+            retryCount++;
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.log(`❌ ${strategy.name} attempt ${retryCount} failed: ${errorMessage}`);
+            
+            // Check if it's a rate limit or temporary error
+            const isTemporaryError = errorMessage.includes('429') || 
+                                   errorMessage.includes('rate limit') ||
+                                   errorMessage.includes('timeout') ||
+                                   errorMessage.includes('connection') ||
+                                   errorMessage.includes('network');
+            
+            if (retryCount < maxRetries && isTemporaryError) {
+              // Exponential backoff: 2^retry * 1000ms + jitter
+              const baseDelay = Math.pow(2, retryCount) * 1000;
+              const jitter = Math.random() * 1000; // Add randomness to avoid thundering herd
+              const delay = baseDelay + jitter;
+              
+              console.log(`⏳ Temporary error detected, retrying ${strategy.name} in ${Math.round(delay)}ms...`);
+              await new Promise(resolve => setTimeout(resolve, delay));
+            } else if (retryCount >= maxRetries) {
+              console.log(`💥 ${strategy.name} failed after ${maxRetries} attempts, trying next strategy...`);
+              break;
+            }
+          }
+        }
+        
+        // If we got videoInfo, break out of the strategy loop
+        if (videoInfo) break;
+        
+        // Brief pause between different strategies to avoid overwhelming the server
+        if (strategyIndex < infoStrategies.length - 1) {
+          console.log('⏱️ Brief pause before trying next strategy...');
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+
+      if (!videoInfo) {
+        throw new Error('All video info extraction strategies failed. YouTube may have enhanced bot detection.');
+      }
       
       const parsedInfo = typeof videoInfo === 'object' ? videoInfo as YouTubeDLInfo : null;
       console.log('Video info retrieved:', parsedInfo ? {
@@ -558,196 +708,173 @@ export async function POST(request: NextRequest) {
       console.log('Target audio path:', actualAudioPath);
       
       try {
-        // Try multiple strategies for downloading
+        // Use the same successful strategy from video info extraction for download
+        console.log(`Using ${successfulStrategy} strategy for download...`);
+        
         let downloadSuccess = false;
         let lastError: Error | null = null;
         let finalPath = actualAudioPath;
 
-        // Strategy 1: Try with m4a format first (most compatible with OpenAI)
-        console.log('=== STRATEGY 1: M4A Download ===');
-        try {
-          const m4aPath = actualAudioPath.replace('.webm', '.m4a');
-          console.log('Attempting m4a download to:', m4aPath);
-          
-          const m4aResult = await ytdl.execPromise([
-            url,
-            '--format', 'bestaudio[ext=m4a]/bestaudio[ext=mp4]/bestaudio',
-            '--output', m4aPath,
-            '--extract-audio',
-            '--audio-format', 'm4a',
-            '--no-warnings',
-            '--verbose',
-            '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            '--add-header', 'Accept-Language:en-US,en;q=0.9',
-            '--add-header', 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            '--add-header', 'Accept-Encoding:gzip, deflate, br',
-            '--add-header', 'DNT:1',
-            '--add-header', 'Connection:keep-alive',
-            '--add-header', 'Upgrade-Insecure-Requests:1',
-            '--extractor-args', 'youtube:player_client=web'
-          ]);
-          console.log('M4A download output:', m4aResult);
-          
-          // Check if file exists and has content
-          const m4aStats = await fs.stat(m4aPath);
-          console.log(`M4A file size: ${m4aStats.size} bytes`);
-          
-          if (m4aStats.size > 0) {
-            finalPath = m4aPath; // Keep as m4a, don't rename
-            downloadSuccess = true;
-            console.log('Downloaded successfully with m4a format');
-          } else {
-            throw new Error('M4A file is empty');
-          }
-        } catch (m4aError) {
-          console.log('M4A download failed:', m4aError);
-          lastError = m4aError instanceof Error ? m4aError : new Error(String(m4aError));
-        }
-
-        // Strategy 2: Try with mp3 extraction
-        if (!downloadSuccess) {
-          console.log('=== STRATEGY 2: MP3 Extract ===');
-          try {
-            const mp3Path = actualAudioPath.replace('.webm', '.mp3');
-            console.log('Attempting mp3 extract to:', mp3Path);
-            
-            const mp3Result = await ytdl.execPromise([
+        // Create download strategies matching the successful info extraction strategy
+        const downloadStrategies = [
+          // Strategy 1: Mobile client - same as successful info strategy
+          {
+            name: 'Mobile Client',
+            path: actualAudioPath.replace('.webm', '_mobile.m4a'),
+            args: [
+              url,
+              '--format', 'bestaudio[ext=m4a]/bestaudio[ext=mp4]/bestaudio',
+              '--extract-audio',
+              '--audio-format', 'm4a',
+              '--extractor-args', 'youtube:player_client=android',
+              '--user-agent', 'com.google.android.youtube/17.36.4 (Linux; U; Android 12; GB) gzip'
+            ]
+          },
+          // Strategy 2: TV client - highly reliable
+          {
+            name: 'TV Client',
+            path: actualAudioPath.replace('.webm', '_tv.m4a'),
+            args: [
+              url,
+              '--format', 'bestaudio[ext=m4a]/bestaudio[ext=mp4]/bestaudio',
+              '--extract-audio',
+              '--audio-format', 'm4a',
+              '--extractor-args', 'youtube:player_client=tv_embedded',
+              '--user-agent', 'Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.0) AppleWebKit/537.36 (KHTML, like Gecko) 85.0.4183.93/6.0 TV Safari/537.36'
+            ]
+          },
+          // Strategy 3: iOS client
+          {
+            name: 'iOS Client',
+            path: actualAudioPath.replace('.webm', '_ios.m4a'),
+            args: [
+              url,
+              '--format', 'bestaudio[ext=m4a]/bestaudio[ext=mp4]/bestaudio',
+              '--extract-audio',
+              '--audio-format', 'm4a',
+              '--extractor-args', 'youtube:player_client=ios',
+              '--user-agent', 'com.google.ios.youtube/17.36.4 (iPhone14,3; U; CPU iOS 15_6 like Mac OS X)'
+            ]
+          },
+          // Strategy 4: Web with bypass
+          {
+            name: 'Web Bypass',
+            path: actualAudioPath.replace('.webm', '_web.m4a'),
+            args: [
+              url,
+              '--format', 'bestaudio[ext=m4a]/bestaudio[ext=mp4]/bestaudio',
+              '--extract-audio',
+              '--audio-format', 'm4a',
+              '--extractor-args', 'youtube:player_client=web,youtube:bypass=oauth',
+              '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            ]
+          },
+          // Strategy 5: Embedded player
+          {
+            name: 'Embedded',
+            path: actualAudioPath.replace('.webm', '_embedded.webm'),
+            args: [
               url,
               '--format', 'bestaudio',
-              '--extract-audio',
-              '--audio-format', 'mp3',
-              '--output', mp3Path,
-              '--no-warnings',
-              '--verbose',
-              '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-              '--add-header', 'Accept-Language:en-US,en;q=0.9',
-              '--add-header', 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-              '--add-header', 'Accept-Encoding:gzip, deflate, br',
-              '--add-header', 'DNT:1',
-              '--add-header', 'Connection:keep-alive',
-              '--add-header', 'Upgrade-Insecure-Requests:1',
-              '--extractor-args', 'youtube:player_client=web'
-            ]);
-            console.log('MP3 extract output:', mp3Result);
-            
-            // Check if file exists and has content
-            const mp3Stats = await fs.stat(mp3Path);
-            console.log(`MP3 file size: ${mp3Stats.size} bytes`);
-            
-            if (mp3Stats.size > 0) {
-              finalPath = mp3Path; // Keep as mp3
-              downloadSuccess = true;
-              console.log('Downloaded successfully with mp3 conversion');
-            } else {
-              throw new Error('MP3 file is empty');
-            }
-          } catch (mp3Error) {
-            console.log('MP3 download failed:', mp3Error);
-            lastError = mp3Error instanceof Error ? mp3Error : new Error(String(mp3Error));
+              '--extractor-args', 'youtube:player_client=web_embedded',
+              '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            ]
+          }
+        ];
+
+        // Try strategies in order, prioritizing the one that worked for info extraction
+        let strategiesToTry = [...downloadStrategies];
+        if (successfulStrategy) {
+          const matchingStrategy = downloadStrategies.find(s => s.name === successfulStrategy);
+          if (matchingStrategy) {
+            // Move successful strategy to front
+            strategiesToTry = [matchingStrategy, ...downloadStrategies.filter(s => s.name !== successfulStrategy)];
           }
         }
 
-        // Strategy 3: Try with format ID directly
-        if (!downloadSuccess) {
-          console.log('=== STRATEGY 3: Format ID ===');
-          try {
-            // First get available formats
-            console.log('Getting available formats...');
-            const formats = await ytdl.execPromise([
-              url,
-              '--list-formats',
-              '--no-warnings',
-              '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-              '--add-header', 'Accept-Language:en-US,en;q=0.9',
-              '--extractor-args', 'youtube:player_client=web'
-            ]);
-            console.log('Available formats:', formats);
-            
-            // Extract audio format IDs (usually 140, 251, etc)
-            const audioFormats = formats.match(/(\d+)\s+m4a.*audio only/g) || 
-                                formats.match(/(\d+)\s+webm.*audio only/g) ||
-                                formats.match(/(\d+)\s+.*audio only/g);
-            
-            console.log('Found audio formats:', audioFormats);
-            
-            if (audioFormats && audioFormats.length > 0) {
-              const formatId = audioFormats[0].split(/\s+/)[0];
-              console.log(`Trying direct format ID: ${formatId}`);
+        for (let strategyIndex = 0; strategyIndex < strategiesToTry.length; strategyIndex++) {
+          const strategy = strategiesToTry[strategyIndex];
+          const maxRetries = 2; // Fewer retries for downloads since they're more resource intensive
+          let retryCount = 0;
+          
+          while (retryCount < maxRetries) {
+            try {
+              const attempt = retryCount + 1;
+              console.log(`=== DOWNLOAD STRATEGY: ${strategy.name} (attempt ${attempt}/${maxRetries}) ===`);
+              console.log('Attempting download to:', strategy.path);
               
-              const formatResult = await ytdl.execPromise([
-                url,
-                '--format', formatId,
-                '--output', actualAudioPath,
+              const downloadArgs = [
+                ...strategy.args,
+                '--output', strategy.path,
                 '--no-warnings',
-                '--verbose',
-                '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                '--add-header', 'Accept-Language:en-US,en;q=0.9',
-                '--add-header', 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                '--add-header', 'Accept-Encoding:gzip, deflate, br',
-                '--add-header', 'DNT:1',
-                '--add-header', 'Connection:keep-alive',
-                '--add-header', 'Upgrade-Insecure-Requests:1',
-                '--extractor-args', 'youtube:player_client=web'
-              ]);
-              console.log('Format ID download output:', formatResult);
+                '--verbose'
+              ];
+              
+              console.log('Download command:', downloadArgs.join(' '));
+              
+              // Add timeout for downloads (longer than info extraction)
+              const timeoutMs = 120000; // 2 minutes for downloads
+              const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error(`${strategy.name} download timeout after ${timeoutMs}ms`)), timeoutMs)
+              );
+              
+              const execPromise = ytdl.execPromise(downloadArgs);
+              const result = await Promise.race([execPromise, timeoutPromise]) as string;
+              console.log(`${strategy.name} download output:`, result);
               
               // Check if file exists and has content
-              const formatStats = await fs.stat(actualAudioPath);
-              console.log(`Format ID file size: ${formatStats.size} bytes`);
+              const stats = await fs.stat(strategy.path);
+              console.log(`${strategy.name} file size: ${stats.size} bytes`);
               
-              if (formatStats.size > 0) {
-                finalPath = actualAudioPath;
+              if (stats.size > 0) {
+                finalPath = strategy.path;
                 downloadSuccess = true;
-                console.log(`Downloaded successfully with format ID ${formatId}`);
+                console.log(`✅ Downloaded successfully with ${strategy.name} strategy on attempt ${attempt}`);
+                break;
               } else {
-                throw new Error('Format ID file is empty');
+                throw new Error(`${strategy.name} file is empty`);
               }
-            } else {
-              throw new Error('No audio formats found');
+            } catch (error) {
+              retryCount++;
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              console.log(`❌ ${strategy.name} download attempt ${retryCount} failed: ${errorMessage}`);
+              lastError = error instanceof Error ? error : new Error(String(error));
+              
+              // Check if it's a temporary error worth retrying
+              const isTemporaryError = errorMessage.includes('429') || 
+                                     errorMessage.includes('rate limit') ||
+                                     errorMessage.includes('timeout') ||
+                                     errorMessage.includes('connection') ||
+                                     errorMessage.includes('network') ||
+                                     errorMessage.includes('HTTP Error 5');
+              
+              if (retryCount < maxRetries && isTemporaryError) {
+                // Longer delays for downloads due to their resource intensity
+                const baseDelay = Math.pow(2, retryCount) * 2000; // Start with 4s instead of 2s
+                const jitter = Math.random() * 2000;
+                const delay = baseDelay + jitter;
+                
+                console.log(`⏳ Temporary download error, retrying ${strategy.name} in ${Math.round(delay)}ms...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+              } else if (retryCount >= maxRetries) {
+                console.log(`💥 ${strategy.name} download failed after ${maxRetries} attempts, trying next strategy...`);
+                break;
+              }
             }
-          } catch (formatError) {
-            console.log('Direct format download failed:', formatError);
-            lastError = formatError instanceof Error ? formatError : new Error(String(formatError));
           }
-        }
-
-        // Strategy 4: Try with cookies and user agent
-        if (!downloadSuccess) {
-          console.log('=== STRATEGY 4: Cookies & User Agent ===');
-          try {
-            const cookiePath = actualAudioPath.replace('.webm', '_cookies.webm');
-            console.log('Attempting download with cookies to:', cookiePath);
-            
-            const cookieResult = await ytdl.execPromise([
-              url,
-              '--format', 'bestaudio',
-              '--output', cookiePath,
-              '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-              '--add-header', 'Accept-Language:en-US,en;q=0.9',
-              '--no-warnings',
-              '--verbose'
-            ]);
-            console.log('Cookie download output:', cookieResult);
-            
-            // Check if file exists and has content
-            const cookieStats = await fs.stat(cookiePath);
-            console.log(`Cookie file size: ${cookieStats.size} bytes`);
-            
-            if (cookieStats.size > 0) {
-              finalPath = cookiePath;
-              downloadSuccess = true;
-              console.log('Downloaded successfully with cookies and user agent');
-            } else {
-              throw new Error('Cookie download file is empty');
-            }
-          } catch (cookieError) {
-            console.log('Cookie download failed:', cookieError);
-            lastError = cookieError instanceof Error ? cookieError : new Error(String(cookieError));
+          
+          // If download succeeded, break out of strategy loop
+          if (downloadSuccess) break;
+          
+          // Brief pause between different download strategies
+          if (strategyIndex < strategiesToTry.length - 1) {
+            console.log('⏱️ Brief pause before trying next download strategy...');
+            await new Promise(resolve => setTimeout(resolve, 2000));
           }
         }
 
         if (!downloadSuccess) {
-          console.error('=== ALL STRATEGIES FAILED ===');
+          console.error('=== ALL DOWNLOAD STRATEGIES FAILED ===');
           console.error('Last error:', lastError);
           throw lastError || new Error('All download strategies failed');
         }
