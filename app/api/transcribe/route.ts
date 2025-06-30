@@ -98,6 +98,12 @@ function getBrightDataProxy(): string {
   const envProxy = process.env.YTDLP_PROXY;
   const fallbackProxy = 'http://brd-customer-hl_16699f5c-zone-residential_proxy1:j24ifit7dkc6@brd.superproxy.io:33335';
   
+  if (!envProxy) {
+    console.warn('⚠️ YTDLP_PROXY not configured in environment, using fallback proxy');
+  } else {
+    console.log('✅ YTDLP_PROXY found in environment');
+  }
+  
   const proxyUrl = envProxy || fallbackProxy;
   console.log('🌐 Using proxy:', proxyUrl.replace(/:[^:@]+@/, ':***@')); // Hide password in logs
   
