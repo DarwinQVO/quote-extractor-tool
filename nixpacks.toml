@@ -1,17 +1,17 @@
 [phases.setup]
-nixPkgs = ["nodejs_20", "python3", "python3Packages.pip", "python3Packages.setuptools", "python3Packages.venv", "ffmpeg"]
+nixPkgs = ["nodejs_20", "python3", "python3Packages.pip", "python3Packages.setuptools", "ffmpeg"]
 
 [phases.install]
 cmds = [
-  "npm ci",
-  "python3 -m venv /tmp/ytdlp-env",
-  "/tmp/ytdlp-env/bin/pip install --upgrade yt-dlp",
-  "ln -sf /tmp/ytdlp-env/bin/yt-dlp /usr/local/bin/yt-dlp || echo 'Link failed, using path'"
+  "npm ci"
 ]
 
 [phases.build]
-# Build the application normally
-cmds = ["npm run build"]
+# Install latest yt-dlp and build
+cmds = [
+  "pip3 install --break-system-packages --upgrade yt-dlp || echo 'yt-dlp install failed, using system version'",
+  "npm run build"
+]
 
 [start]
 # Use standard Next.js start command
