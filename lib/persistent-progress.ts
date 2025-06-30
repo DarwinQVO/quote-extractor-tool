@@ -57,7 +57,7 @@ export async function initializeProgress(sourceId: string): Promise<void> {
   progressCache.set(sourceId, progress);
   cacheTimestamps.set(sourceId, Date.now());
 
-  // Persist to database
+  // Persist to database - skip if table doesn't exist
   const supabase = getSupabaseClient();
   if (supabase) {
     try {
@@ -74,7 +74,11 @@ export async function initializeProgress(sourceId: string): Promise<void> {
           retry_count: progress.retryCount
         });
     } catch (error) {
-      console.error('Failed to persist progress initialization:', error);
+      if (error.code === '42P01') {
+        console.warn('transcription_progress table does not exist - using cache only');
+      } else {
+        console.error('Failed to persist progress initialization:', error);
+      }
       // Continue with cache-only operation
     }
   }
@@ -113,7 +117,7 @@ export async function updateProgress(
   progressCache.set(sourceId, updated);
   cacheTimestamps.set(sourceId, Date.now());
 
-  // Persist to database (non-blocking)
+  // Persist to database (non-blocking) - skip if table doesn't exist
   const supabase = getSupabaseClient();
   if (supabase) {
     setImmediate(async () => {
@@ -132,7 +136,11 @@ export async function updateProgress(
             retry_count: updated.retryCount
           });
       } catch (error) {
-        console.error('Failed to persist progress update:', error);
+        if (error.code === '42P01') {
+          console.warn('transcription_progress table does not exist - using cache only');
+        } else {
+          console.error('Failed to persist progress update:', error);
+        }
       }
     });
   }
@@ -215,7 +223,11 @@ export async function getProgress(sourceId: string): Promise<TranscriptionProgre
         .single();
 
       if (error) {
-        console.error('Failed to fetch progress from database:', error);
+        if (error.code === '42P01') {
+          console.warn('transcription_progress table does not exist - using cache only');
+        } else {
+          console.error('Failed to fetch progress from database:', error);
+        }
         return cached || null;
       }
 
