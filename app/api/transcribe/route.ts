@@ -458,52 +458,51 @@ async function getYTDlpWrap() {
   if (!ytDlpWrap) {
     console.log('🔧 Initializing yt-dlp-wrap...');
     
-    // Debug: Check PATH and environment
-    console.log('🔍 Environment debug:');
-    console.log('PATH:', process.env.PATH?.split(':').slice(0, 10).join(':') + '...');
-    console.log('PWD:', process.cwd());
-    
     try {
-      // Try to find yt-dlp in common locations
-      const { spawn } = await import('child_process');
-      const checkYtDlp = (cmd: string): Promise<string> => {
-        return new Promise((resolve, reject) => {
-          const proc = spawn('which', [cmd], { stdio: 'pipe' });
-          let output = '';
-          proc.stdout.on('data', (data) => output += data.toString());
-          proc.on('close', (code) => {
-            if (code === 0) resolve(output.trim());
-            else reject(new Error(`which ${cmd} failed`));
-          });
-          proc.on('error', reject);
-        });
-      };
+      // Try auto-download first (more reliable on Railway)
+      console.log('🔄 Using auto-download yt-dlp (more reliable for deployment)...');
+      ytDlpWrap = new YTDlpWrap();
       
-      try {
-        const ytdlpPath = await checkYtDlp('yt-dlp');
-        console.log(`🎯 Found yt-dlp at: ${ytdlpPath}`);
-      } catch {
-        console.log('⚠️ yt-dlp not found in PATH');
-      }
+      // Just initialize it - it will download on first use if needed
+      console.log('✅ yt-dlp-wrap initialized (will auto-download binary as needed)');
       
-      // Try system yt-dlp first, then auto-download
-      try {
-        console.log('🔍 Trying system yt-dlp binary...');
-        ytDlpWrap = new YTDlpWrap('yt-dlp');
-        const version = await ytDlpWrap.execPromise(['--version']);
-        console.log(`✅ Using system yt-dlp version: ${version.trim()}`);
-      } catch (systemError) {
-        console.log('⚠️ System yt-dlp failed:', systemError instanceof Error ? systemError.message : systemError);
-        console.log('🔄 Using auto-download...');
-        // Fallback to auto-download
-        ytDlpWrap = new YTDlpWrap();
-        // Test with a simple version check
-        const version = await ytDlpWrap.execPromise(['--version']);
-        console.log(`✅ Auto-downloaded yt-dlp version: ${version.trim()}`);
-      }
     } catch (error) {
       console.error('❌ Failed to initialize yt-dlp-wrap:', error);
-      throw error;
+      // Last resort: try to manually locate system binary
+      console.log('🆘 Attempting emergency fallback...');
+      
+      try {
+        // Try common paths where nixpkgs might install yt-dlp
+        const possiblePaths = [
+          '/nix/store/*/bin/yt-dlp',
+          '/usr/bin/yt-dlp',
+          '/bin/yt-dlp'
+        ];
+        
+        const { glob } = await import('glob');
+        for (const pattern of possiblePaths) {
+          try {
+            const matches = await glob(pattern);
+            if (matches.length > 0) {
+              console.log(`🎯 Found system yt-dlp at: ${matches[0]}`);
+              ytDlpWrap = new YTDlpWrap(matches[0]);
+              const version = await ytDlpWrap.execPromise(['--version']);
+              console.log(`✅ Using system yt-dlp version: ${version.trim()}`);
+              break;
+            }
+          } catch (pathError) {
+            console.log(`⚠️ Path ${pattern} not accessible:`, pathError);
+            continue;
+          }
+        }
+        
+        if (!ytDlpWrap) {
+          throw new Error('No working yt-dlp binary found');
+        }
+      } catch (fallbackError) {
+        console.error('❌ Emergency fallback failed:', fallbackError);
+        throw error; // Re-throw original error
+      }
     }
   }
   return ytDlpWrap;
