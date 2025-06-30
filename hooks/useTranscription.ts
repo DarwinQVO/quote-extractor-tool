@@ -67,8 +67,8 @@ export function useTranscription(sourceId: string | null) {
         eventSource.close();
       };
       
-      // Start transcription with simple endpoint (guaranteed to work)
-      const response = await fetch('/api/transcribe-simple', {
+      // Start complete video processing (metadata + transcript)
+      const response = await fetch('/api/video-processor', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sourceId, url: source.url }),
