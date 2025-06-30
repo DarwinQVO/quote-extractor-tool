@@ -67,8 +67,8 @@ export function useTranscription(sourceId: string | null) {
         eventSource.close();
       };
       
-      // Start transcription with ultimate endpoint (no proxy, maximum compatibility)
-      const response = await fetch('/api/transcribe-ultimate', {
+      // Start transcription with final enterprise endpoint
+      const response = await fetch('/api/transcribe-final', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sourceId, url: source.url }),
