@@ -101,6 +101,32 @@ export async function POST(request: NextRequest) {
       }
     }
     
+    // Method 2.5: yt-dlp metadata extraction as additional fallback
+    if (!metadata || !metadata.title || metadata.title === 'Video Processing') {
+      try {
+        console.log('🔧 Using yt-dlp for metadata...');
+        const metadataCmd = `yt-dlp --print title --print uploader --print duration --no-warnings "${url}"`;
+        const { stdout } = await execAsync(metadataCmd, { timeout: 30000 });
+        
+        const lines = stdout.trim().split('\n');
+        if (lines.length >= 2) {
+          metadata = {
+            title: lines[0] || 'Unknown Title',
+            channel: lines[1] || 'Unknown Channel', 
+            description: '',
+            duration: parseFloat(lines[2]) || 300,
+            uploadDate: new Date(),
+            thumbnail: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+            viewCount: 0,
+            tags: []
+          };
+          console.log('✅ Metadata extracted via yt-dlp');
+        }
+      } catch (error) {
+        console.log('⚠️ yt-dlp metadata failed:', error);
+      }
+    }
+    
     // Method 3: Default metadata if all fails
     if (!metadata) {
       console.log('🔧 Using default metadata...');
