@@ -86,6 +86,17 @@ async function retryWithBackoff<T>(
   throw lastError!;
 }
 
+// Function to get Bright Data proxy URL
+function getBrightDataProxy(): string {
+  const envProxy = process.env.YTDLP_PROXY;
+  const fallbackProxy = 'http://brd-customer-hl_16699f5c-zone-residential_proxy1:j24ifit7dkc6@brd.superproxy.io:33335';
+  
+  const proxyUrl = envProxy || fallbackProxy;
+  console.log('🌐 Using proxy:', proxyUrl.replace(/:[^:@]+@/, ':***@')); // Hide password in logs
+  
+  return proxyUrl;
+}
+
 // Function to check if ffmpeg is available
 async function isFFmpegAvailable(): Promise<boolean> {
   return new Promise((resolve) => {
@@ -1086,6 +1097,9 @@ async function downloadLongVideoWithYtDlp(videoId: string, sourceId: string, tem
   for (const strategy of longVideoStrategies) {
     try {
       console.log(`🔄 Trying ${strategy.name} for long video...`);
+      console.log(`🔧 LONG VIDEO COMMAND DEBUG for ${strategy.name}:`);
+      console.log('- Path:', strategy.path);
+      console.log('- Args:', JSON.stringify(strategy.args, null, 2));
       
       // Add extra timeout for long videos (10 minutes)
       const longTimeout = 600000; // 10 minutes
@@ -1096,11 +1110,14 @@ async function downloadLongVideoWithYtDlp(videoId: string, sourceId: string, tem
       const downloadArgs = [
         ...strategy.args,
         '--output', strategy.path,
-        '--no-warnings'
+        '--no-warnings',
+        '--verbose' // Add verbose for debugging
       ];
       
+      console.log(`⚡ Starting download with ${strategy.name}...`);
       const execPromise = ytdl.execPromise(downloadArgs);
       await Promise.race([execPromise, timeoutPromise]);
+      console.log(`✅ ${strategy.name} command completed successfully`);
       
       // Check if file exists and has content
       const stats = await fs.stat(strategy.path);
@@ -1255,6 +1272,12 @@ async function getYTDlpWrap() {
 
 export async function POST(request: NextRequest) {
   console.log('🚀 Transcription request started');
+  
+  // DEBUG: Check proxy configuration
+  const proxyConfig = process.env.YTDLP_PROXY;
+  console.log('🌐 PROXY CONFIG CHECK:');
+  console.log('- YTDLP_PROXY env var:', proxyConfig ? 'SET ✅' : 'NOT SET ❌');
+  console.log('- Proxy value:', proxyConfig || 'USING HARDCODED FALLBACK');
   
   let sourceId, url;
   try {
@@ -1454,7 +1477,7 @@ export async function POST(request: NextRequest) {
           args: [
             url, '--dump-json', '--no-warnings', '--skip-download',
             '-f', 'bestaudio',
-            '--proxy', process.env.YTDLP_PROXY || 'http://brd-customer-hl_16699f5c-zone-residential_proxy1:j24ifit7dkc6@brd.superproxy.io:33335',
+            '--proxy', getBrightDataProxy(),
             '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             '--sleep-interval', '2',
             '--max-sleep-interval', '8',
@@ -1547,6 +1570,10 @@ export async function POST(request: NextRequest) {
         console.log(`🔄 Trying ${strategy.name}...`);
         
         try {
+          // DEBUG: Log exact command being executed
+          console.log(`🔧 COMMAND DEBUG for ${strategy.name}:`);
+          console.log('- Args:', JSON.stringify(strategy.args, null, 2));
+          
           // Use retry with exponential back-off for this strategy
           const result = await retryWithBackoff(async () => {
             console.log(`🎯 Executing ${strategy.name}...`);
@@ -1560,6 +1587,7 @@ export async function POST(request: NextRequest) {
             const execPromise = ytdl.execPromise(strategy.args);
             const execResult = await Promise.race([execPromise, timeoutPromise]) as string;
             
+            console.log(`✅ ${strategy.name} raw result length:`, execResult.length);
             return JSON.parse(execResult);
           }, 5, 2000, strategy.name);
           
@@ -1638,9 +1666,12 @@ export async function POST(request: NextRequest) {
         const isLongVideo = videoDuration > 7200; // > 2 hours
         
         console.log(`📊 Video duration: ${videoDuration}s (${Math.round(videoDuration/60)} minutes)`);
+        console.log(`🎯 Long video threshold: 7200s (120 minutes)`);
+        console.log(`📏 Duration check: ${videoDuration} > 7200 = ${isLongVideo}`);
         
         if (isLongVideo) {
           console.log('🎬 Long video detected (>2h), using yt-dlp with chunking strategy...');
+          console.log('🔧 About to call downloadLongVideoWithYtDlp...');
           // For long videos, we NEED yt-dlp for reliable chunking
           actualAudioPath = await downloadLongVideoWithYtDlp(videoId, sourceId, tempDir, ytdl);
           console.log('✅ Long video download with chunking successful!');
@@ -1672,7 +1703,7 @@ export async function POST(request: NextRequest) {
               '--format', 'bestaudio[ext=m4a]/bestaudio[ext=mp4]/bestaudio',
               '--extract-audio',
               '--audio-format', 'm4a',
-              '--proxy', process.env.YTDLP_PROXY || 'http://brd-customer-hl_16699f5c-zone-residential_proxy1:j24ifit7dkc6@brd.superproxy.io:33335',
+              '--proxy', getBrightDataProxy(),
               '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
               '--extractor-args', 'youtube:player_client=web',
               '--geo-bypass-country', 'US',
