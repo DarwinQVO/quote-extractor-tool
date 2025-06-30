@@ -318,9 +318,8 @@ async function transcribeWithOpenAI(audioFilePath: string, sourceId: string, tem
       timeout: 300000
     });
     
-    const audioBuffer = readFileSync(audioFilePath);
-    const audioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
-    const audioFile = new File([audioBlob], 'audio.mp3', { type: 'audio/mpeg' });
+    const fs = require('fs');
+    const audioFile = fs.createReadStream(audioFilePath);
     
     const transcription = await openai.audio.transcriptions.create({
       file: audioFile,
