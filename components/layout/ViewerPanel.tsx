@@ -178,6 +178,18 @@ Return only the enhanced text, no explanations.`);
   const transcript = activeSourceId ? transcripts.get(activeSourceId) : null;
   const progress = activeSourceId ? transcriptionProgress.get(activeSourceId) || 0 : 0;
   
+  // Debug logging
+  useEffect(() => {
+    console.log('🔍 ViewerPanel state update:', {
+      activeSourceId,
+      hasTranscript: !!transcript,
+      transcriptSegments: transcript?.segments?.length || 0,
+      transcriptWords: transcript?.words?.length || 0,
+      transcriptsInStore: transcripts.size,
+      allTranscriptIds: Array.from(transcripts.keys())
+    });
+  }, [activeSourceId, transcript, transcripts]);
+  
   // Initialize video validator
   const { validateVideo, isValidating, retryVideoLoad, forceVideoRefresh } = useVideoValidator();
   

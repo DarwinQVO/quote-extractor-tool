@@ -95,9 +95,17 @@ export function useTranscription(sourceId: string | null) {
         });
         
         // Load the transcript that was just saved
+        console.log('🔍 Loading transcript from API for sourceId:', sourceId);
         const transcriptResponse = await fetch(`/api/transcripts/${sourceId}`);
+        console.log('📡 Transcript API response status:', transcriptResponse.status);
+        
         if (transcriptResponse.ok) {
           const transcriptData = await transcriptResponse.json();
+          console.log('✅ Transcript data loaded:', {
+            segments: transcriptData.segments?.length || 0,
+            words: transcriptData.words?.length || 0,
+            speakers: transcriptData.speakers?.length || 0
+          });
           
           setTranscript(sourceId, {
             sourceId,
@@ -105,6 +113,11 @@ export function useTranscription(sourceId: string | null) {
             words: transcriptData.words || [],
             speakers: transcriptData.speakers || [],
           });
+          
+          console.log('✅ Transcript set in store for sourceId:', sourceId);
+        } else {
+          const errorText = await transcriptResponse.text();
+          console.error('❌ Failed to load transcript:', errorText);
         }
         
         toast({
