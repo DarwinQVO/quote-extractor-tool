@@ -183,42 +183,72 @@ export async function POST(request: NextRequest) {
     
     let transcript = null;
     
-    // Strategy A: YouTube Transcript API
+    // Strategy A: ENTERPRISE YouTube Transcript API (Multiple approaches)
     try {
-      console.log('📡 Trying YouTube Transcript API...');
-      const transcriptUrl = `https://www.youtube.com/api/timedtext?lang=en&v=${videoId}&fmt=vtt`;
+      console.log('📡 ENTERPRISE: Trying YouTube Transcript API...');
       
-      const transcriptResponse = await fetch(transcriptUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Accept': 'text/vtt',
-          'Referer': 'https://www.youtube.com/'
-        }
-      });
+      // Method 1: Direct timedtext API
+      const transcriptUrls = [
+        `https://www.youtube.com/api/timedtext?lang=en&v=${videoId}&fmt=vtt`,
+        `https://www.youtube.com/api/timedtext?lang=en&v=${videoId}&fmt=srv3`,
+        `https://www.youtube.com/api/timedtext?v=${videoId}&fmt=vtt`,
+        `https://www.youtube.com/api/timedtext?v=${videoId}&fmt=srv3`
+      ];
       
-      if (transcriptResponse.ok) {
-        const vttContent = await transcriptResponse.text();
-        
-        if (vttContent.includes('WEBVTT') && vttContent.length > 100) {
-          const segments = parseVTTToSegments(vttContent);
+      for (const transcriptUrl of transcriptUrls) {
+        try {
+          console.log(`🔍 Trying: ${transcriptUrl}`);
+          const transcriptResponse = await fetch(transcriptUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+              'Accept': 'text/vtt, application/xml, text/xml, */*',
+              'Referer': 'https://www.youtube.com/',
+              'Accept-Language': 'en-US,en;q=0.9'
+            }
+          });
           
-          if (segments.length > 0) {
-            transcript = {
-              id: sourceId,
-              sourceId,
-              segments,
-              words: extractWordsFromSegments(segments),
-              text: segments.map(s => s.text).join(' '),
-              language: 'en',
-              createdAt: new Date(),
-              duration: segments[segments.length - 1]?.end || metadata.duration
-            };
-            console.log('✅ Transcript extracted via YouTube API');
+          if (transcriptResponse.ok) {
+            const content = await transcriptResponse.text();
+            console.log(`📄 Response content length: ${content.length}`);
+            
+            if (content.length > 50) {
+              let segments = [];
+              
+              if (content.includes('WEBVTT')) {
+                console.log('✅ Found VTT format transcript');
+                segments = parseVTTToSegments(content);
+              } else if (content.includes('<transcript>') || content.includes('<text')) {
+                console.log('✅ Found XML format transcript');
+                segments = parseXMLToSegments(content);
+              }
+              
+              if (segments.length > 0) {
+                transcript = {
+                  id: sourceId,
+                  sourceId,
+                  segments: segments.map(seg => ({
+                    ...seg,
+                    speaker: 'Speaker 1' // Add speaker for consistency
+                  })),
+                  words: extractWordsFromSegments(segments),
+                  text: segments.map(s => s.text).join(' '),
+                  language: 'en',
+                  createdAt: new Date(),
+                  duration: segments[segments.length - 1]?.end || metadata.duration
+                };
+                console.log(`✅ REAL transcript extracted via YouTube API: ${segments.length} segments`);
+                break;
+              }
+            }
+          } else {
+            console.log(`❌ Response status: ${transcriptResponse.status}`);
           }
+        } catch (urlError) {
+          console.log(`⚠️ URL failed:`, urlError);
         }
       }
     } catch (error) {
-      console.log('⚠️ YouTube Transcript API failed:', error);
+      console.log('❌ YouTube Transcript API failed:', error);
     }
     
     // Strategy B: REAL Audio extraction + OpenAI Whisper (ENTERPRISE)
@@ -551,6 +581,66 @@ function parseVTTToSegments(vttContent: string) {
   }
   
   return segments;
+}
+
+function parseXMLToSegments(xmlContent: string) {
+  const segments = [];
+  
+  try {
+    // Parse XML transcript format from YouTube
+    const textMatches = xmlContent.matchAll(/<text start="([^"]+)"[^>]*dur="([^"]+)"[^>]*>([^<]+)<\/text>/g);
+    
+    for (const match of textMatches) {
+      const start = parseFloat(match[1]);
+      const duration = parseFloat(match[2]);
+      const text = match[3]
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .trim();
+      
+      if (text && !isNaN(start) && !isNaN(duration)) {
+        segments.push({
+          start: start,
+          end: start + duration,
+          text: text
+        });
+      }
+    }
+    
+    // Alternative XML format
+    if (segments.length === 0) {
+      const altMatches = xmlContent.matchAll(/<text[^>]*t="([^"]+)"[^>]*d="([^"]+)"[^>]*>([^<]+)<\/text>/g);
+      
+      for (const match of altMatches) {
+        const start = parseFloat(match[1]) / 1000; // Convert milliseconds to seconds
+        const duration = parseFloat(match[2]) / 1000;
+        const text = match[3]
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'")
+          .trim();
+        
+        if (text && !isNaN(start) && !isNaN(duration)) {
+          segments.push({
+            start: start,
+            end: start + duration,
+            text: text
+          });
+        }
+      }
+    }
+    
+    console.log(`📊 Parsed ${segments.length} segments from XML`);
+    return segments;
+  } catch (error) {
+    console.log('❌ XML parsing failed:', error);
+    return [];
+  }
 }
 
 function parseVTTTime(timeString: string): number {
