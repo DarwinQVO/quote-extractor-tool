@@ -127,16 +127,16 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    // Method 3: Default metadata if all fails
-    if (!metadata) {
-      console.log('🔧 Using default metadata...');
+    // Method 3: Default metadata if all fails - Use video ID to create meaningful titles
+    if (!metadata || !metadata.title || metadata.title === 'Video Processing') {
+      console.log('🔧 Using enhanced default metadata...');
       metadata = {
-        title: 'Video Processing',
-        channel: 'Unknown Channel',
-        description: 'Processing video content...',
+        title: `YouTube Video ${videoId}`,
+        channel: 'YouTube Channel',
+        description: `Video content from ${url}`,
         duration: 300, // 5 minutes default
         uploadDate: new Date(),
-        thumbnail: '',
+        thumbnail: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
         viewCount: 0,
         tags: []
       };
@@ -363,25 +363,97 @@ function parseDuration(duration: string): number {
 
 function extractMetadataFromHTML(html: string) {
   try {
-    // Extract title
-    const titleMatch = html.match(/<title>([^<]+)<\/title>/);
-    const title = titleMatch ? titleMatch[1].replace(' - YouTube', '') : 'Unknown Title';
+    console.log('🔍 Parsing HTML metadata...');
     
-    // Extract channel name
-    const channelMatch = html.match(/"ownerChannelName":"([^"]+)"/);
-    const channel = channelMatch ? channelMatch[1] : 'Unknown Channel';
+    // Extract title - multiple patterns
+    let title = 'Unknown Title';
+    const titlePatterns = [
+      /<title>([^<]+)<\/title>/,
+      /"title":"([^"]+)"/,
+      /"videoTitle":"([^"]+)"/,
+      /property="og:title" content="([^"]+)"/,
+      /name="title" content="([^"]+)"/
+    ];
+    
+    for (const pattern of titlePatterns) {
+      const match = html.match(pattern);
+      if (match && match[1] && match[1].trim()) {
+        title = match[1].replace(/ - YouTube$/, '').trim();
+        console.log('✅ Title found:', title);
+        break;
+      }
+    }
+    
+    // Extract channel name - multiple patterns
+    let channel = 'Unknown Channel';
+    const channelPatterns = [
+      /"ownerChannelName":"([^"]+)"/,
+      /"channelName":"([^"]+)"/,
+      /"author":"([^"]+)"/,
+      /property="og:video:author" content="([^"]+)"/,
+      /"uploader":"([^"]+)"/
+    ];
+    
+    for (const pattern of channelPatterns) {
+      const match = html.match(pattern);
+      if (match && match[1] && match[1].trim()) {
+        channel = match[1].trim();
+        console.log('✅ Channel found:', channel);
+        break;
+      }
+    }
+    
+    // Extract duration - multiple patterns
+    let duration = 300;
+    const durationPatterns = [
+      /"lengthSeconds":"(\d+)"/,
+      /"duration":"(\d+)"/,
+      /property="og:video:duration" content="(\d+)"/
+    ];
+    
+    for (const pattern of durationPatterns) {
+      const match = html.match(pattern);
+      if (match && match[1]) {
+        duration = parseInt(match[1]);
+        console.log('✅ Duration found:', duration);
+        break;
+      }
+    }
     
     // Extract description
-    const descMatch = html.match(/"description":{"simpleText":"([^"]+)"}/);
-    const description = descMatch ? descMatch[1].substring(0, 500) : '';
+    const descPatterns = [
+      /"description":{"simpleText":"([^"]+)"}/,
+      /"shortDescription":"([^"]+)"/,
+      /property="og:description" content="([^"]+)"/,
+      /name="description" content="([^"]+)"/
+    ];
     
-    // Extract duration
-    const durationMatch = html.match(/"lengthSeconds":"(\d+)"/);
-    const duration = durationMatch ? parseInt(durationMatch[1]) : 300;
+    let description = '';
+    for (const pattern of descPatterns) {
+      const match = html.match(pattern);
+      if (match && match[1]) {
+        description = match[1].substring(0, 500);
+        break;
+      }
+    }
     
     // Extract thumbnail
-    const thumbMatch = html.match(/"url":"(https:\/\/i\.ytimg\.com\/vi\/[^"]+)"/);
-    const thumbnail = thumbMatch ? thumbMatch[1] : '';
+    const thumbPatterns = [
+      /"url":"(https:\/\/i\.ytimg\.com\/vi\/[^"]+)"/,
+      /property="og:image" content="(https:\/\/i\.ytimg\.com\/vi\/[^"]+)"/,
+      /"thumbnail":"(https:\/\/i\.ytimg\.com\/vi\/[^"]+)"/
+    ];
+    
+    let thumbnail = '';
+    for (const pattern of thumbPatterns) {
+      const match = html.match(pattern);
+      if (match && match[1]) {
+        thumbnail = match[1];
+        break;
+      }
+    }
+    
+    console.log('📊 Extracted metadata:', { title, channel, duration });
     
     return {
       title,
