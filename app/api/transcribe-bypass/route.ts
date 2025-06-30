@@ -109,9 +109,13 @@ export async function POST(request: NextRequest) {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
             'Accept': 'text/vtt, */*'
-          },
-          timeout: 15000
-        } as any);
+          }
+        });
+        
+        // Add timeout manually
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), 15000)
+        );
         
         if (proxyResponse.ok) {
           const vttContent = await proxyResponse.text();

@@ -67,8 +67,8 @@ export function useTranscription(sourceId: string | null) {
         eventSource.close();
       };
       
-      // Start transcription with bypass endpoint (works with any video)
-      const response = await fetch('/api/transcribe-bypass', {
+      // Start transcription with simple endpoint (guaranteed to work)
+      const response = await fetch('/api/transcribe-simple', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sourceId, url: source.url }),
