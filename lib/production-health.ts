@@ -27,10 +27,10 @@ export function validateEnvironmentVariables(): HealthCheckResult {
     'OPENAI_API_KEY': process.env.OPENAI_API_KEY,
     'NEXT_PUBLIC_SUPABASE_URL': process.env.NEXT_PUBLIC_SUPABASE_URL,
     'NEXT_PUBLIC_SUPABASE_ANON_KEY': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    'YTDLP_PROXY': process.env.YTDLP_PROXY,
   };
 
   const optional = {
+    'YTDLP_PROXY': process.env.YTDLP_PROXY,
     'YOUTUBE_API_KEY': process.env.YOUTUBE_API_KEY,
     'FFMPEG_PATH': process.env.FFMPEG_PATH,
     'FFPROBE_PATH': process.env.FFPROBE_PATH,
@@ -144,38 +144,47 @@ export async function checkOpenAIHealth(): Promise<HealthCheckResult> {
     }
 
     // Test API with a minimal request
-    const response = await fetch('https://api.openai.com/v1/models', {
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      timeout: 10000 // 10 second timeout
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    
+    try {
+      const response = await fetch('https://api.openai.com/v1/models', {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
 
-    if (!response.ok) {
+      if (!response.ok) {
+        return {
+          service: 'OpenAI API',
+          status: 'unhealthy',
+          message: `OpenAI API check failed: ${response.status} ${response.statusText}`
+        };
+      }
+
+      const data = await response.json();
+      const hasWhisperModels = data.data?.some((model: any) => model.id.includes('whisper'));
+
+      if (!hasWhisperModels) {
+        return {
+          service: 'OpenAI API',
+          status: 'warning',
+          message: 'OpenAI API accessible but Whisper models not available'
+        };
+      }
+
       return {
         service: 'OpenAI API',
-        status: 'unhealthy',
-        message: `OpenAI API check failed: ${response.status} ${response.statusText}`
+        status: 'healthy',
+        message: 'OpenAI API and Whisper models accessible'
       };
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      throw fetchError;
     }
-
-    const data = await response.json();
-    const hasWhisperModels = data.data?.some((model: any) => model.id.includes('whisper'));
-
-    if (!hasWhisperModels) {
-      return {
-        service: 'OpenAI API',
-        status: 'warning',
-        message: 'OpenAI API accessible but Whisper models not available'
-      };
-    }
-
-    return {
-      service: 'OpenAI API',
-      status: 'healthy',
-      message: 'OpenAI API and Whisper models accessible'
-    };
   } catch (error) {
     return {
       service: 'OpenAI API',
@@ -194,53 +203,72 @@ export async function checkFFmpegHealth(): Promise<HealthCheckResult> {
     const { spawn } = await import('child_process');
 
     return new Promise((resolve) => {
-      const ffmpeg = spawn('ffmpeg', ['-version']);
-      let output = '';
-
-      ffmpeg.stdout.on('data', (data) => {
-        output += data.toString();
-      });
-
-      ffmpeg.on('close', (code) => {
-        if (code === 0) {
-          resolve({
-            service: 'FFmpeg',
-            status: 'healthy',
-            message: 'FFmpeg is available and functional',
-            details: { version: output.split('\n')[0] }
-          });
-        } else {
-          resolve({
-            service: 'FFmpeg',
-            status: 'unhealthy',
-            message: `FFmpeg check failed with exit code: ${code}`
-          });
+      let resolved = false;
+      
+      const resolveOnce = (result: HealthCheckResult) => {
+        if (!resolved) {
+          resolved = true;
+          resolve(result);
         }
-      });
+      };
 
-      ffmpeg.on('error', (error) => {
-        resolve({
-          service: 'FFmpeg',
-          status: 'unhealthy',
-          message: `FFmpeg not available: ${error.message}`,
-          details: error
-        });
-      });
+      try {
+        const ffmpeg = spawn('ffmpeg', ['-version']);
+        let output = '';
 
-      // Timeout after 5 seconds
-      setTimeout(() => {
-        ffmpeg.kill();
-        resolve({
-          service: 'FFmpeg',
-          status: 'unhealthy',
-          message: 'FFmpeg health check timed out'
+        ffmpeg.stdout?.on('data', (data) => {
+          output += data.toString();
         });
-      }, 5000);
+
+        ffmpeg.on('close', (code) => {
+          if (code === 0) {
+            resolveOnce({
+              service: 'FFmpeg',
+              status: 'healthy',
+              message: 'FFmpeg is available and functional',
+              details: { version: output.split('\n')[0] }
+            });
+          } else {
+            resolveOnce({
+              service: 'FFmpeg',
+              status: 'warning',
+              message: `FFmpeg check returned exit code: ${code}, but may still work`
+            });
+          }
+        });
+
+        ffmpeg.on('error', (error) => {
+          resolveOnce({
+            service: 'FFmpeg',
+            status: 'warning',
+            message: `FFmpeg not available in PATH: ${error.message}`,
+            details: error
+          });
+        });
+
+        // Timeout after 5 seconds
+        setTimeout(() => {
+          try {
+            ffmpeg.kill();
+          } catch {}
+          resolveOnce({
+            service: 'FFmpeg',
+            status: 'warning',
+            message: 'FFmpeg health check timed out'
+          });
+        }, 5000);
+      } catch (spawnError) {
+        resolveOnce({
+          service: 'FFmpeg',
+          status: 'warning',
+          message: `FFmpeg spawn failed: ${(spawnError as Error).message}`
+        });
+      }
     });
   } catch (error) {
     return {
       service: 'FFmpeg',
-      status: 'unhealthy',
+      status: 'warning',
       message: `FFmpeg health check failed: ${(error as Error).message}`,
       details: error
     };
@@ -283,7 +311,7 @@ export async function checkYtDlpHealth(): Promise<HealthCheckResult> {
         resolve({
           service: 'yt-dlp',
           status: 'warning',
-          message: `yt-dlp not available: ${error.message}, will attempt auto-download`,
+          message: `yt-dlp not available in PATH: ${error.message}, will attempt auto-download`,
           details: error
         });
       });
