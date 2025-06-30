@@ -597,75 +597,136 @@ export async function POST(request: NextRequest) {
       console.log('Getting video info with enterprise anti-detection...');
       
       let videoInfo = null;
+      
+      // Advanced anti-detection strategies with realistic browser simulation
       const infoStrategies = [
-        // Strategy 1: Mobile client (often less restricted)
+        // Strategy 1: Android app with complete headers
         {
-          name: 'Mobile Client',
+          name: 'Android App',
           args: [
             url, '--dump-json', '--no-warnings', '--skip-download',
             '--extractor-args', 'youtube:player_client=android',
-            '--user-agent', 'com.google.android.youtube/17.36.4 (Linux; U; Android 12; GB) gzip',
+            '--user-agent', 'com.google.android.youtube/18.43.45 (Linux; U; Android 13; SM-G991B) gzip',
             '--add-header', 'X-YouTube-Client-Name:3',
-            '--add-header', 'X-YouTube-Client-Version:17.36.4',
-            '--add-header', 'Accept-Language:en-US,en;q=0.9'
+            '--add-header', 'X-YouTube-Client-Version:18.43.45',
+            '--add-header', 'X-YouTube-API-Key:AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w',
+            '--add-header', 'Accept-Language:en-US,en;q=0.9',
+            '--add-header', 'Accept-Encoding:gzip, deflate',
+            '--add-header', 'Content-Type:application/json'
           ]
         },
-        // Strategy 2: TV client (very reliable)
+        // Strategy 2: Smart TV with complete authentication
         {
-          name: 'TV Client', 
+          name: 'Smart TV',
           args: [
             url, '--dump-json', '--no-warnings', '--skip-download',
             '--extractor-args', 'youtube:player_client=tv_embedded',
-            '--user-agent', 'Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.0) AppleWebKit/537.36 (KHTML, like Gecko) 85.0.4183.93/6.0 TV Safari/537.36',
+            '--user-agent', 'Mozilla/5.0 (SMART-TV; LINUX; Tizen 7.0) AppleWebKit/537.36 (KHTML, like Gecko) 94.0.4606.31/7.0 TV Safari/537.36',
             '--add-header', 'X-YouTube-Client-Name:85',
-            '--add-header', 'X-YouTube-Client-Version:2.0'
+            '--add-header', 'X-YouTube-Client-Version:7.20231030.13.00',
+            '--add-header', 'Origin:https://www.youtube.com',
+            '--add-header', 'Referer:https://www.youtube.com/tv'
           ]
         },
-        // Strategy 3: iOS client
+        // Strategy 3: iOS app with realistic headers
         {
-          name: 'iOS Client',
+          name: 'iOS App',
           args: [
             url, '--dump-json', '--no-warnings', '--skip-download',
             '--extractor-args', 'youtube:player_client=ios',
-            '--user-agent', 'com.google.ios.youtube/17.36.4 (iPhone14,3; U; CPU iOS 15_6 like Mac OS X)',
+            '--user-agent', 'com.google.ios.youtube/18.43.4 (iPhone15,3; U; CPU iOS 17_1 like Mac OS X)',
             '--add-header', 'X-YouTube-Client-Name:5',
-            '--add-header', 'X-YouTube-Client-Version:17.36.4'
+            '--add-header', 'X-YouTube-Client-Version:18.43.4',
+            '--add-header', 'X-YouTube-API-Key:AIzaSyB-63vPrdThhKuerbB2N_l7Kwwcxj6yUAc'
           ]
         },
-        // Strategy 4: Web with bypass
+        // Strategy 4: Safari browser simulation
         {
-          name: 'Web Bypass',
+          name: 'Safari Browser',
           args: [
             url, '--dump-json', '--no-warnings', '--skip-download',
-            '--extractor-args', 'youtube:player_client=web,youtube:bypass=oauth',
-            '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            '--extractor-args', 'youtube:player_client=web',
+            '--user-agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15',
+            '--add-header', 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            '--add-header', 'Accept-Language:en-US,en;q=0.5',
+            '--add-header', 'Accept-Encoding:gzip, deflate, br',
+            '--add-header', 'DNT:1',
+            '--add-header', 'Connection:keep-alive',
+            '--add-header', 'Upgrade-Insecure-Requests:1',
+            '--add-header', 'Sec-Fetch-Dest:document',
+            '--add-header', 'Sec-Fetch-Mode:navigate',
+            '--add-header', 'Sec-Fetch-Site:none',
+            '--add-header', 'Sec-Fetch-User:?1'
           ]
         },
-        // Strategy 5: Embedded player
+        // Strategy 5: Chrome with full browser simulation
         {
-          name: 'Embedded',
+          name: 'Chrome Browser',
           args: [
             url, '--dump-json', '--no-warnings', '--skip-download',
-            '--extractor-args', 'youtube:player_client=web_embedded',
-            '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            '--extractor-args', 'youtube:player_client=web',
+            '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            '--add-header', 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            '--add-header', 'Accept-Language:en-US,en;q=0.9',
+            '--add-header', 'Accept-Encoding:gzip, deflate, br',
+            '--add-header', 'Cache-Control:max-age=0',
+            '--add-header', 'DNT:1',
+            '--add-header', 'Connection:keep-alive',
+            '--add-header', 'Upgrade-Insecure-Requests:1',
+            '--add-header', 'sec-ch-ua:"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+            '--add-header', 'sec-ch-ua-mobile:?0',
+            '--add-header', 'sec-ch-ua-platform:"Windows"',
+            '--add-header', 'Sec-Fetch-Dest:document',
+            '--add-header', 'Sec-Fetch-Mode:navigate',
+            '--add-header', 'Sec-Fetch-Site:none',
+            '--add-header', 'Sec-Fetch-User:?1'
+          ]
+        },
+        // Strategy 6: Firefox with anti-fingerprinting
+        {
+          name: 'Firefox Browser',
+          args: [
+            url, '--dump-json', '--no-warnings', '--skip-download',
+            '--extractor-args', 'youtube:player_client=web',
+            '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0',
+            '--add-header', 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            '--add-header', 'Accept-Language:en-US,en;q=0.5',
+            '--add-header', 'Accept-Encoding:gzip, deflate, br',
+            '--add-header', 'DNT:1',
+            '--add-header', 'Connection:keep-alive',
+            '--add-header', 'Upgrade-Insecure-Requests:1',
+            '--add-header', 'Sec-Fetch-Dest:document',
+            '--add-header', 'Sec-Fetch-Mode:navigate',
+            '--add-header', 'Sec-Fetch-Site:none',
+            '--add-header', 'Sec-Fetch-User:?1',
+            '--add-header', 'TE:trailers'
           ]
         }
       ];
 
-      // Intelligent retry system with exponential backoff
+      // Advanced retry system with human-like behavior
       let successfulStrategy = null;
-      for (let strategyIndex = 0; strategyIndex < infoStrategies.length; strategyIndex++) {
-        const strategy = infoStrategies[strategyIndex];
-        const maxRetries = 3;
+      
+      // Shuffle strategies for randomness (avoid predictable patterns)
+      const shuffledStrategies = [...infoStrategies].sort(() => Math.random() - 0.5);
+      
+      for (let strategyIndex = 0; strategyIndex < shuffledStrategies.length; strategyIndex++) {
+        const strategy = shuffledStrategies[strategyIndex];
+        const maxRetries = 2; // Reduce retries per strategy, but test more strategies
         let retryCount = 0;
+        
+        // Human-like delay before starting each strategy (2-8 seconds)
+        const preStrategyDelay = 2000 + Math.random() * 6000;
+        console.log(`⏳ Human-like delay before ${strategy.name}: ${Math.round(preStrategyDelay)}ms`);
+        await new Promise(resolve => setTimeout(resolve, preStrategyDelay));
         
         while (retryCount < maxRetries) {
           try {
             const attempt = retryCount + 1;
-            console.log(`Trying ${strategy.name} strategy (attempt ${attempt}/${maxRetries})...`);
+            console.log(`🎯 Trying ${strategy.name} strategy (attempt ${attempt}/${maxRetries})...`);
             
-            // Add timeout to prevent hanging
-            const timeoutMs = 30000; // 30 seconds
+            // Extended timeout for better reliability
+            const timeoutMs = 45000; // 45 seconds
             const timeoutPromise = new Promise((_, reject) => 
               setTimeout(() => reject(new Error(`${strategy.name} timeout after ${timeoutMs}ms`)), timeoutMs)
             );
@@ -675,30 +736,34 @@ export async function POST(request: NextRequest) {
             
             videoInfo = JSON.parse(result);
             successfulStrategy = strategy.name;
-            console.log(`✅ ${strategy.name} strategy succeeded on attempt ${attempt}!`);
+            console.log(`🚀 SUCCESS! ${strategy.name} strategy worked on attempt ${attempt}!`);
             break;
           } catch (error) {
             retryCount++;
             const errorMessage = error instanceof Error ? error.message : String(error);
-            console.log(`❌ ${strategy.name} attempt ${retryCount} failed: ${errorMessage}`);
+            console.log(`❌ ${strategy.name} attempt ${retryCount} failed: ${errorMessage.substring(0, 200)}`);
+            
+            // Check if it's a bot detection error specifically
+            const isBotDetection = errorMessage.includes('Sign in to confirm you\'re not a bot') ||
+                                 errorMessage.includes('bot') ||
+                                 errorMessage.includes('captcha');
             
             // Check if it's a rate limit or temporary error
             const isTemporaryError = errorMessage.includes('429') || 
                                    errorMessage.includes('rate limit') ||
                                    errorMessage.includes('timeout') ||
                                    errorMessage.includes('connection') ||
-                                   errorMessage.includes('network');
+                                   errorMessage.includes('network') ||
+                                   errorMessage.includes('HTTP Error 5');
             
-            if (retryCount < maxRetries && isTemporaryError) {
-              // Exponential backoff: 2^retry * 1000ms + jitter
-              const baseDelay = Math.pow(2, retryCount) * 1000;
-              const jitter = Math.random() * 1000; // Add randomness to avoid thundering herd
-              const delay = baseDelay + jitter;
+            if (retryCount < maxRetries && (isTemporaryError || isBotDetection)) {
+              // Human-like delays: 3-15 seconds for bot detection, 1-5 for others
+              const baseDelay = isBotDetection ? 3000 + Math.random() * 12000 : 1000 + Math.random() * 4000;
               
-              console.log(`⏳ Temporary error detected, retrying ${strategy.name} in ${Math.round(delay)}ms...`);
-              await new Promise(resolve => setTimeout(resolve, delay));
+              console.log(`⏳ ${isBotDetection ? 'Bot detection' : 'Temporary'} error, waiting ${Math.round(baseDelay)}ms before retry...`);
+              await new Promise(resolve => setTimeout(resolve, baseDelay));
             } else if (retryCount >= maxRetries) {
-              console.log(`💥 ${strategy.name} failed after ${maxRetries} attempts, trying next strategy...`);
+              console.log(`💥 ${strategy.name} exhausted after ${maxRetries} attempts, switching strategy...`);
               break;
             }
           }
@@ -707,10 +772,11 @@ export async function POST(request: NextRequest) {
         // If we got videoInfo, break out of the strategy loop
         if (videoInfo) break;
         
-        // Brief pause between different strategies to avoid overwhelming the server
-        if (strategyIndex < infoStrategies.length - 1) {
-          console.log('⏱️ Brief pause before trying next strategy...');
-          await new Promise(resolve => setTimeout(resolve, 1000));
+        // Human-like pause between different strategies (1-4 seconds)
+        if (strategyIndex < shuffledStrategies.length - 1) {
+          const interStrategyDelay = 1000 + Math.random() * 3000;
+          console.log(`🔄 Switching to next strategy in ${Math.round(interStrategyDelay)}ms...`);
+          await new Promise(resolve => setTimeout(resolve, interStrategyDelay));
         }
       }
 
@@ -750,24 +816,27 @@ export async function POST(request: NextRequest) {
         let lastError: Error | null = null;
         let finalPath = actualAudioPath;
 
-        // Create download strategies matching the successful info extraction strategy
+        // Create advanced download strategies with same anti-detection
         const downloadStrategies = [
-          // Strategy 1: Mobile client - same as successful info strategy
+          // Strategy 1: Android app download
           {
-            name: 'Mobile Client',
-            path: actualAudioPath.replace('.webm', '_mobile.m4a'),
+            name: 'Android App',
+            path: actualAudioPath.replace('.webm', '_android.m4a'),
             args: [
               url,
               '--format', 'bestaudio[ext=m4a]/bestaudio[ext=mp4]/bestaudio',
               '--extract-audio',
               '--audio-format', 'm4a',
               '--extractor-args', 'youtube:player_client=android',
-              '--user-agent', 'com.google.android.youtube/17.36.4 (Linux; U; Android 12; GB) gzip'
+              '--user-agent', 'com.google.android.youtube/18.43.45 (Linux; U; Android 13; SM-G991B) gzip',
+              '--add-header', 'X-YouTube-Client-Name:3',
+              '--add-header', 'X-YouTube-Client-Version:18.43.45',
+              '--add-header', 'X-YouTube-API-Key:AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w'
             ]
           },
-          // Strategy 2: TV client - highly reliable
+          // Strategy 2: Smart TV download
           {
-            name: 'TV Client',
+            name: 'Smart TV',
             path: actualAudioPath.replace('.webm', '_tv.m4a'),
             args: [
               url,
@@ -775,12 +844,16 @@ export async function POST(request: NextRequest) {
               '--extract-audio',
               '--audio-format', 'm4a',
               '--extractor-args', 'youtube:player_client=tv_embedded',
-              '--user-agent', 'Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.0) AppleWebKit/537.36 (KHTML, like Gecko) 85.0.4183.93/6.0 TV Safari/537.36'
+              '--user-agent', 'Mozilla/5.0 (SMART-TV; LINUX; Tizen 7.0) AppleWebKit/537.36 (KHTML, like Gecko) 94.0.4606.31/7.0 TV Safari/537.36',
+              '--add-header', 'X-YouTube-Client-Name:85',
+              '--add-header', 'X-YouTube-Client-Version:7.20231030.13.00',
+              '--add-header', 'Origin:https://www.youtube.com',
+              '--add-header', 'Referer:https://www.youtube.com/tv'
             ]
           },
-          // Strategy 3: iOS client
+          // Strategy 3: iOS app download
           {
-            name: 'iOS Client',
+            name: 'iOS App',
             path: actualAudioPath.replace('.webm', '_ios.m4a'),
             args: [
               url,
@@ -788,31 +861,10 @@ export async function POST(request: NextRequest) {
               '--extract-audio',
               '--audio-format', 'm4a',
               '--extractor-args', 'youtube:player_client=ios',
-              '--user-agent', 'com.google.ios.youtube/17.36.4 (iPhone14,3; U; CPU iOS 15_6 like Mac OS X)'
-            ]
-          },
-          // Strategy 4: Web with bypass
-          {
-            name: 'Web Bypass',
-            path: actualAudioPath.replace('.webm', '_web.m4a'),
-            args: [
-              url,
-              '--format', 'bestaudio[ext=m4a]/bestaudio[ext=mp4]/bestaudio',
-              '--extract-audio',
-              '--audio-format', 'm4a',
-              '--extractor-args', 'youtube:player_client=web,youtube:bypass=oauth',
-              '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            ]
-          },
-          // Strategy 5: Embedded player
-          {
-            name: 'Embedded',
-            path: actualAudioPath.replace('.webm', '_embedded.webm'),
-            args: [
-              url,
-              '--format', 'bestaudio',
-              '--extractor-args', 'youtube:player_client=web_embedded',
-              '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+              '--user-agent', 'com.google.ios.youtube/18.43.4 (iPhone15,3; U; CPU iOS 17_1 like Mac OS X)',
+              '--add-header', 'X-YouTube-Client-Name:5',
+              '--add-header', 'X-YouTube-Client-Version:18.43.4',
+              '--add-header', 'X-YouTube-API-Key:AIzaSyB-63vPrdThhKuerbB2N_l7Kwwcxj6yUAc'
             ]
           }
         ];
@@ -827,44 +879,46 @@ export async function POST(request: NextRequest) {
           }
         }
 
+        // Use the same successful strategy first, but with human-like delays
         for (let strategyIndex = 0; strategyIndex < strategiesToTry.length; strategyIndex++) {
           const strategy = strategiesToTry[strategyIndex];
-          const maxRetries = 2; // Fewer retries for downloads since they're more resource intensive
+          const maxRetries = 1; // Single attempt per download strategy (they're resource intensive)
           let retryCount = 0;
+          
+          // Human delay before download attempt (5-10 seconds)
+          const preDownloadDelay = 5000 + Math.random() * 5000;
+          console.log(`⏳ Preparing download with ${strategy.name}: ${Math.round(preDownloadDelay)}ms`);
+          await new Promise(resolve => setTimeout(resolve, preDownloadDelay));
           
           while (retryCount < maxRetries) {
             try {
               const attempt = retryCount + 1;
-              console.log(`=== DOWNLOAD STRATEGY: ${strategy.name} (attempt ${attempt}/${maxRetries}) ===`);
-              console.log('Attempting download to:', strategy.path);
+              console.log(`🎵 DOWNLOAD STRATEGY: ${strategy.name} (attempt ${attempt}/${maxRetries})`);
+              console.log('📁 Downloading to:', strategy.path);
               
               const downloadArgs = [
                 ...strategy.args,
                 '--output', strategy.path,
-                '--no-warnings',
-                '--verbose'
+                '--no-warnings'
               ];
               
-              console.log('Download command:', downloadArgs.join(' '));
-              
-              // Add timeout for downloads (longer than info extraction)
-              const timeoutMs = 120000; // 2 minutes for downloads
+              // Extended timeout for downloads
+              const timeoutMs = 180000; // 3 minutes for downloads
               const timeoutPromise = new Promise((_, reject) => 
                 setTimeout(() => reject(new Error(`${strategy.name} download timeout after ${timeoutMs}ms`)), timeoutMs)
               );
               
               const execPromise = ytdl.execPromise(downloadArgs);
               const result = await Promise.race([execPromise, timeoutPromise]) as string;
-              console.log(`${strategy.name} download output:`, result);
               
               // Check if file exists and has content
               const stats = await fs.stat(strategy.path);
-              console.log(`${strategy.name} file size: ${stats.size} bytes`);
+              console.log(`📊 ${strategy.name} downloaded: ${stats.size} bytes`);
               
               if (stats.size > 0) {
                 finalPath = strategy.path;
                 downloadSuccess = true;
-                console.log(`✅ Downloaded successfully with ${strategy.name} strategy on attempt ${attempt}`);
+                console.log(`🎉 DOWNLOAD SUCCESS with ${strategy.name}!`);
                 break;
               } else {
                 throw new Error(`${strategy.name} file is empty`);
@@ -872,27 +926,21 @@ export async function POST(request: NextRequest) {
             } catch (error) {
               retryCount++;
               const errorMessage = error instanceof Error ? error.message : String(error);
-              console.log(`❌ ${strategy.name} download attempt ${retryCount} failed: ${errorMessage}`);
+              console.log(`❌ ${strategy.name} download failed: ${errorMessage.substring(0, 200)}`);
               lastError = error instanceof Error ? error : new Error(String(error));
               
-              // Check if it's a temporary error worth retrying
-              const isTemporaryError = errorMessage.includes('429') || 
-                                     errorMessage.includes('rate limit') ||
-                                     errorMessage.includes('timeout') ||
-                                     errorMessage.includes('connection') ||
-                                     errorMessage.includes('network') ||
-                                     errorMessage.includes('HTTP Error 5');
+              // Check for bot detection in downloads too
+              const isBotDetection = errorMessage.includes('Sign in to confirm you\'re not a bot') ||
+                                   errorMessage.includes('bot') ||
+                                   errorMessage.includes('captcha');
               
-              if (retryCount < maxRetries && isTemporaryError) {
-                // Longer delays for downloads due to their resource intensity
-                const baseDelay = Math.pow(2, retryCount) * 2000; // Start with 4s instead of 2s
-                const jitter = Math.random() * 2000;
-                const delay = baseDelay + jitter;
-                
-                console.log(`⏳ Temporary download error, retrying ${strategy.name} in ${Math.round(delay)}ms...`);
-                await new Promise(resolve => setTimeout(resolve, delay));
-              } else if (retryCount >= maxRetries) {
-                console.log(`💥 ${strategy.name} download failed after ${maxRetries} attempts, trying next strategy...`);
+              if (isBotDetection) {
+                console.log(`🤖 Bot detection during download, will try next strategy`);
+                break; // Move to next strategy immediately for bot detection
+              }
+              
+              if (retryCount >= maxRetries) {
+                console.log(`💥 ${strategy.name} download exhausted, trying next strategy...`);
                 break;
               }
             }
@@ -901,10 +949,11 @@ export async function POST(request: NextRequest) {
           // If download succeeded, break out of strategy loop
           if (downloadSuccess) break;
           
-          // Brief pause between different download strategies
+          // Human-like pause between download strategies (3-8 seconds)
           if (strategyIndex < strategiesToTry.length - 1) {
-            console.log('⏱️ Brief pause before trying next download strategy...');
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            const interDownloadDelay = 3000 + Math.random() * 5000;
+            console.log(`🔄 Switching download strategy in ${Math.round(interDownloadDelay)}ms...`);
+            await new Promise(resolve => setTimeout(resolve, interDownloadDelay));
           }
         }
 
