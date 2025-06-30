@@ -3,18 +3,17 @@
 
 FROM node:18-slim
 
-# Install system dependencies
+# Install system dependencies including yt-dlp from apt
 RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
     python3-setuptools \
+    python3-venv \
     ffmpeg \
     curl \
     ca-certificates \
+    yt-dlp \
     && rm -rf /var/lib/apt/lists/*
-
-# Install yt-dlp
-RUN pip3 install yt-dlp
 
 # Set working directory
 WORKDIR /app
