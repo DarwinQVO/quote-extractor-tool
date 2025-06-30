@@ -528,6 +528,129 @@ async function extractWithHTMLScraping(videoId: string): Promise<any> {
   };
 }
 
+async function extractYouTubeAutoCaption(videoId: string): Promise<{ segments: any[], words: any[], speakers: any[] } | null> {
+  console.log('🎯 Extracting YouTube auto-generated captions...');
+  
+  try {
+    // Method 1: Try YouTube transcript API (unofficial but works)
+    const transcriptUrl = `https://youtubetranscript.com/?server_vid2=${videoId}`;
+    
+    let response = await fetch(transcriptUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'application/json, text/plain, */*',
+        'Referer': 'https://youtubetranscript.com/',
+        'Origin': 'https://youtubetranscript.com'
+      }
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.length > 0) {
+        return convertTranscriptToSegments(data);
+      }
+    }
+    
+    // Method 2: Direct YouTube caption API
+    const captionUrl = `https://www.youtube.com/api/timedtext?v=${videoId}&lang=en&fmt=json3`;
+    
+    response = await fetch(captionUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'application/json',
+        'Referer': `https://www.youtube.com/watch?v=${videoId}`
+      }
+    });
+    
+    if (response.ok) {
+      const captionData = await response.json();
+      if (captionData && captionData.events) {
+        return convertYouTubeCaptionsToSegments(captionData.events);
+      }
+    }
+    
+    // Method 3: Try alternative caption extraction
+    const altUrl = `https://video.google.com/timedtext?lang=en&v=${videoId}`;
+    
+    response = await fetch(altUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+    
+    if (response.ok) {
+      const xmlText = await response.text();
+      if (xmlText && xmlText.includes('<text')) {
+        return convertXMLCaptionsToSegments(xmlText);
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.log('❌ Auto-caption extraction failed:', error instanceof Error ? error.message : error);
+    return null;
+  }
+}
+
+function convertTranscriptToSegments(transcript: any[]): { segments: any[], words: any[], speakers: any[] } {
+  const segments = transcript.map((item: any, index: number) => ({
+    speaker: 'Speaker 1',
+    start: parseFloat(item.start || item.offset || 0),
+    end: parseFloat(item.start || item.offset || 0) + parseFloat(item.duration || 4),
+    text: item.text || item.content || ''
+  }));
+  
+  return {
+    segments,
+    words: [],
+    speakers: [{ originalName: 'Speaker 1', customName: 'Speaker 1' }]
+  };
+}
+
+function convertYouTubeCaptionsToSegments(events: any[]): { segments: any[], words: any[], speakers: any[] } {
+  const segments = events
+    .filter((event: any) => event.segs)
+    .map((event: any, index: number) => ({
+      speaker: 'Speaker 1',
+      start: parseFloat(event.tStartMs || 0) / 1000,
+      end: (parseFloat(event.tStartMs || 0) + parseFloat(event.dDurationMs || 4000)) / 1000,
+      text: event.segs.map((seg: any) => seg.utf8).join('')
+    }));
+  
+  return {
+    segments,
+    words: [],
+    speakers: [{ originalName: 'Speaker 1', customName: 'Speaker 1' }]
+  };
+}
+
+function convertXMLCaptionsToSegments(xmlText: string): { segments: any[], words: any[], speakers: any[] } {
+  const textMatches = xmlText.match(/<text start="([^"]+)" dur="([^"]+)"[^>]*>([^<]+)<\/text>/g) || [];
+  
+  const segments = textMatches.map((match: string, index: number) => {
+    const startMatch = match.match(/start="([^"]+)"/);
+    const durMatch = match.match(/dur="([^"]+)"/);
+    const textMatch = match.match(/>([^<]+)</);
+    
+    const start = parseFloat(startMatch?.[1] || '0');
+    const duration = parseFloat(durMatch?.[1] || '4');
+    const text = textMatch?.[1]?.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>') || '';
+    
+    return {
+      speaker: 'Speaker 1',
+      start,
+      end: start + duration,
+      text
+    };
+  });
+  
+  return {
+    segments,
+    words: [],
+    speakers: [{ originalName: 'Speaker 1', customName: 'Speaker 1' }]
+  };
+}
+
 // ENTERPRISE FUNCTIONS FOR YOUTUBE EXTRACTION
 async function extractWithResidentialProxy(url: string, ytdl: YTDlpWrap): Promise<any> {
   // Use rotating residential proxies to appear as real users
@@ -1037,16 +1160,47 @@ export async function POST(request: NextRequest) {
       
       let videoInfo = null;
       
-      // REVOLUTIONARY APPROACH: NO yt-dlp needed for metadata
-      console.log('🚀 Using yt-dlp-free extraction methods...');
+      // REVOLUTIONARY APPROACH: Try YouTube auto-generated captions FIRST
+      console.log('🚀 Trying revolutionary transcript-first approach...');
+      
+      // Method 0: YouTube Auto-Generated Captions (Bypass audio completely!)
+      try {
+        console.log('🎯 Checking for auto-generated captions...');
+        const transcript = await extractYouTubeAutoCaption(videoId);
+        if (transcript && transcript.segments.length > 0) {
+          console.log(`✅ Auto-captions found! ${transcript.segments.length} segments`);
+          
+          // Save transcript directly and skip audio download completely
+          await saveTranscript(sourceId, {
+            sourceId,
+            segments: transcript.segments,
+            words: transcript.words || [],
+            speakers: transcript.speakers || [{ originalName: 'Speaker 1', customName: 'Speaker 1' }],
+          });
+          
+          setProgress(sourceId, 100);
+          setTimeout(() => deleteProgress(sourceId), 5000);
+          
+          return NextResponse.json({ 
+            segments: transcript.segments,
+            words: transcript.words || [],
+            speakers: transcript.speakers || [{ originalName: 'Speaker 1', customName: 'Speaker 1' }],
+            message: `Successfully extracted ${transcript.segments.length} segments from auto-captions`,
+            auto_caption: true
+          });
+        }
+      } catch (captionError) {
+        console.log('⚠️ Auto-captions not available:', captionError instanceof Error ? captionError.message : captionError);
+      }
       
       // Method 1: YouTube oEmbed API (Public, no restrictions)
+      let metadataExtractionStrategy = null;
       try {
         console.log('📺 Trying YouTube oEmbed API...');
         videoInfo = await extractWithOEmbed(videoId);
         if (videoInfo) {
           console.log('✅ oEmbed extraction successful!');
-          successfulStrategy = 'oEmbed API';
+          metadataExtractionStrategy = 'oEmbed API';
         }
       } catch (oembedError) {
         console.log('⚠️ oEmbed failed:', oembedError instanceof Error ? oembedError.message : oembedError);
@@ -1059,7 +1213,7 @@ export async function POST(request: NextRequest) {
           videoInfo = await extractWithHTMLScraping(videoId);
           if (videoInfo) {
             console.log('✅ HTML scraping successful!');
-            successfulStrategy = 'HTML Scraping';
+            metadataExtractionStrategy = 'HTML Scraping';
           }
         } catch (scrapingError) {
           console.log('⚠️ HTML scraping failed:', scrapingError instanceof Error ? scrapingError.message : scrapingError);
@@ -1073,7 +1227,7 @@ export async function POST(request: NextRequest) {
           videoInfo = await extractWithYouTubeAPI(videoId);
           if (videoInfo) {
             console.log('✅ YouTube API extraction successful!');
-            successfulStrategy = 'YouTube API';
+            metadataExtractionStrategy = 'YouTube API';
           }
         } catch (apiError) {
           console.log('⚠️ YouTube API failed:', apiError instanceof Error ? apiError.message : apiError);
@@ -1333,7 +1487,7 @@ export async function POST(request: NextRequest) {
           }
         } else {
           // Use the same successful strategy from video info extraction for download
-          console.log(`Using ${successfulStrategy} strategy for download...`);
+          console.log(`Using ${metadataExtractionStrategy || 'standard'} strategy for download...`);
         
           let downloadSuccess = false;
           let lastError: Error | null = null;
@@ -1394,11 +1548,11 @@ export async function POST(request: NextRequest) {
 
         // Try strategies in order, prioritizing the one that worked for info extraction
         let strategiesToTry = [...downloadStrategies];
-        if (successfulStrategy) {
-          const matchingStrategy = downloadStrategies.find(s => s.name === successfulStrategy);
+        if (metadataExtractionStrategy) {
+          const matchingStrategy = downloadStrategies.find(s => s.name === metadataExtractionStrategy);
           if (matchingStrategy) {
             // Move successful strategy to front
-            strategiesToTry = [matchingStrategy, ...downloadStrategies.filter(s => s.name !== successfulStrategy)];
+            strategiesToTry = [matchingStrategy, ...downloadStrategies.filter(s => s.name !== metadataExtractionStrategy)];
           }
         }
 
