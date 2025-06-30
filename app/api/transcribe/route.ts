@@ -576,7 +576,10 @@ export async function POST(request: NextRequest) {
           args: [
             url, '--dump-json', '--no-warnings', '--skip-download',
             '--extractor-args', 'youtube:player_client=android',
-            '--user-agent', 'com.google.android.youtube/17.36.4 (Linux; U; Android 12; GB) gzip'
+            '--user-agent', 'com.google.android.youtube/17.36.4 (Linux; U; Android 12; GB) gzip',
+            '--add-header', 'X-YouTube-Client-Name:3',
+            '--add-header', 'X-YouTube-Client-Version:17.36.4',
+            '--add-header', 'Accept-Language:en-US,en;q=0.9'
           ]
         },
         // Strategy 2: TV client (very reliable)
@@ -585,7 +588,9 @@ export async function POST(request: NextRequest) {
           args: [
             url, '--dump-json', '--no-warnings', '--skip-download',
             '--extractor-args', 'youtube:player_client=tv_embedded',
-            '--user-agent', 'Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.0) AppleWebKit/537.36 (KHTML, like Gecko) 85.0.4183.93/6.0 TV Safari/537.36'
+            '--user-agent', 'Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.0) AppleWebKit/537.36 (KHTML, like Gecko) 85.0.4183.93/6.0 TV Safari/537.36',
+            '--add-header', 'X-YouTube-Client-Name:85',
+            '--add-header', 'X-YouTube-Client-Version:2.0'
           ]
         },
         // Strategy 3: iOS client
@@ -594,7 +599,9 @@ export async function POST(request: NextRequest) {
           args: [
             url, '--dump-json', '--no-warnings', '--skip-download',
             '--extractor-args', 'youtube:player_client=ios',
-            '--user-agent', 'com.google.ios.youtube/17.36.4 (iPhone14,3; U; CPU iOS 15_6 like Mac OS X)'
+            '--user-agent', 'com.google.ios.youtube/17.36.4 (iPhone14,3; U; CPU iOS 15_6 like Mac OS X)',
+            '--add-header', 'X-YouTube-Client-Name:5',
+            '--add-header', 'X-YouTube-Client-Version:17.36.4'
           ]
         },
         // Strategy 4: Web with bypass
