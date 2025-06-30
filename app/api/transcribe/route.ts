@@ -45,6 +45,47 @@ function getOpenAIClient() {
   return openaiClient;
 }
 
+// Retry with exponential back-off for resilient downloads
+async function retryWithBackoff<T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 5,
+  baseDelay: number = 1000,
+  operationName: string = 'operation'
+): Promise<T> {
+  let lastError: Error;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error as Error;
+      
+      // Check if it's a retryable error (429, 403, network issues)
+      const isRetryable = lastError.message.includes('429') || 
+                         lastError.message.includes('403') || 
+                         lastError.message.includes('network') ||
+                         lastError.message.includes('timeout') ||
+                         lastError.message.includes('ECONNRESET');
+      
+      if (!isRetryable || attempt === maxRetries) {
+        console.log(`❌ ${operationName} failed after ${attempt} attempts:`, lastError.message);
+        throw lastError;
+      }
+      
+      const delay = baseDelay * Math.pow(2, attempt - 1); // Exponential back-off
+      const jitter = Math.random() * 1000; // Add jitter to avoid thundering herd
+      const totalDelay = delay + jitter;
+      
+      console.log(`⚠️ ${operationName} attempt ${attempt}/${maxRetries} failed, retrying in ${Math.round(totalDelay)}ms...`);
+      console.log(`   Error: ${lastError.message.substring(0, 100)}`);
+      
+      await new Promise(resolve => setTimeout(resolve, totalDelay));
+    }
+  }
+  
+  throw lastError!;
+}
+
 // Function to check if ffmpeg is available
 async function isFFmpegAvailable(): Promise<boolean> {
   return new Promise((resolve) => {
@@ -54,19 +95,67 @@ async function isFFmpegAvailable(): Promise<boolean> {
   });
 }
 
+// Function to preprocess audio to 16kHz mono for Whisper
+async function preprocessAudioForWhisper(inputPath: string): Promise<string> {
+  const tempDir = tmpdir();
+  const outputPath = path.join(tempDir, `preprocessed_${Date.now()}.wav`);
+  
+  console.log('🔧 Preprocessing audio: 16kHz mono for Whisper optimization...');
+  
+  return new Promise((resolve, reject) => {
+    // Convert to WAV 16 kHz mono for Whisper (as per specification)
+    const ffmpeg = spawn('ffmpeg', [
+      '-y', '-i', inputPath,
+      '-ac', '1',      // mono
+      '-ar', '16000',  // 16kHz sample rate
+      outputPath
+    ]);
+    
+    let stderr = '';
+    ffmpeg.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    ffmpeg.on('close', (code) => {
+      if (code === 0) {
+        console.log('✅ Audio preprocessed successfully for Whisper');
+        resolve(outputPath);
+      } else {
+        console.error('❌ Audio preprocessing failed:', stderr);
+        reject(new Error(`ffmpeg preprocessing failed with code ${code}: ${stderr}`));
+      }
+    });
+    
+    ffmpeg.on('error', (error) => {
+      reject(new Error(`ffmpeg spawn error: ${error.message}`));
+    });
+  });
+}
+
 // Function to split audio into chunks using ffmpeg
-async function splitAudioIntoChunks(audioPath: string, chunkDurationMinutes: number = 10): Promise<string[]> {
+async function splitAudioIntoChunks(audioPath: string, chunkDurationMinutes: number = 15): Promise<string[]> {
   const chunkPaths: string[] = [];
   const tempDir = tmpdir();
   const fileExtension = path.extname(audioPath);
   const baseName = path.basename(audioPath, fileExtension);
   
+  // Check file size first - Whisper API limit is 25MB per file
+  const stats = await fs.stat(audioPath);
+  const fileSizeMB = stats.size / (1024 * 1024);
+  
+  console.log(`📊 Audio file size: ${fileSizeMB.toFixed(2)} MB`);
+  
+  if (fileSizeMB <= 24) {
+    console.log('✅ File under 24MB limit - no chunking needed');
+    return [audioPath];
+  }
+  
   // Get audio duration using ffprobe
   const duration = await getAudioDuration(audioPath);
-  const chunkDurationSeconds = chunkDurationMinutes * 60;
+  const chunkDurationSeconds = Math.min(chunkDurationMinutes * 60, 900); // Max 900s (15min) as per spec
   const numChunks = Math.ceil(duration / chunkDurationSeconds);
   
-  console.log(`Splitting ${duration}s audio into ${numChunks} chunks of ${chunkDurationMinutes} minutes each`);
+  console.log(`📊 Splitting ${duration}s audio into ${numChunks} chunks of max ${chunkDurationSeconds}s each`);
   
   for (let i = 0; i < numChunks; i++) {
     const startTime = i * chunkDurationSeconds;
@@ -1013,6 +1102,83 @@ async function downloadLongVideoWithYtDlp(videoId: string, sourceId: string, tem
   throw new Error('All long video download strategies failed');
 }
 
+// Function to check for closed captions as fallback
+async function tryClosedCaptions(videoId: string, ytdl: YTDlpWrap): Promise<{ segments: any[], words: any[], speakers: any[] } | null> {
+  console.log('🎬 Checking for downloadable closed captions...');
+  
+  try {
+    const tempDir = tmpdir();
+    const subtitlePath = path.join(tempDir, `${videoId}_captions`);
+    
+    // Try to download subtitles with various languages
+    const captionArgs = [
+      `https://www.youtube.com/watch?v=${videoId}`,
+      '--write-subs',
+      '--sub-lang', 'en.*live,en.*auto,en',
+      '--skip-download',
+      '--output', subtitlePath
+    ];
+    
+    await ytdl.execPromise(captionArgs);
+    
+    // Look for generated subtitle files
+    const files = await fs.readdir(tempDir);
+    const captionFiles = files.filter(f => f.startsWith(`${videoId}_captions`) && f.endsWith('.vtt'));
+    
+    if (captionFiles.length > 0) {
+      const captionFile = captionFiles[0];
+      const captionContent = await fs.readFile(path.join(tempDir, captionFile), 'utf-8');
+      
+      console.log(`✅ Found closed captions: ${captionFile}`);
+      return parseVTTCaptions(captionContent);
+    }
+    
+    return null;
+  } catch (error) {
+    console.log('⚠️ No closed captions available:', error instanceof Error ? error.message : error);
+    return null;
+  }
+}
+
+function parseVTTCaptions(vttContent: string): { segments: any[], words: any[], speakers: any[] } {
+  const lines = vttContent.split('\n');
+  const segments = [];
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    
+    // VTT timestamp format: 00:00:00.000 --> 00:00:04.000
+    if (line.includes(' --> ')) {
+      const [startTime, endTime] = line.split(' --> ');
+      const text = lines[i + 1]?.trim() || '';
+      
+      if (text && !text.startsWith('NOTE') && !text.startsWith('WEBVTT')) {
+        segments.push({
+          speaker: 'Speaker 1',
+          start: parseVTTTimestamp(startTime),
+          end: parseVTTTimestamp(endTime),
+          text: text.replace(/<[^>]*>/g, '') // Remove HTML tags
+        });
+      }
+    }
+  }
+  
+  return {
+    segments,
+    words: [],
+    speakers: [{ originalName: 'Speaker 1', customName: 'Speaker 1' }]
+  };
+}
+
+function parseVTTTimestamp(timestamp: string): number {
+  const parts = timestamp.split(':');
+  const hours = parseInt(parts[0] || '0');
+  const minutes = parseInt(parts[1] || '0');
+  const seconds = parseFloat(parts[2] || '0');
+  
+  return hours * 3600 + minutes * 60 + seconds;
+}
+
 // Initialize yt-dlp-wrap - use system binary if available
 let ytDlpWrap: YTDlpWrap | null = null;
 
@@ -1234,59 +1400,61 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Method 4: Alternative audio extraction services (no yt-dlp)
+      // Method 4: RESILIENT DOWNLOAD STRATEGIES (E1-E4)
       if (!videoInfo) {
-        console.log('🎵 Trying audio-first extraction...');
+        console.log('🎵 Implementing resilient download strategies E1-E4...');
         
-      // Advanced anti-detection strategies with realistic browser simulation
-      const infoStrategies = [
-        // Strategy 1: Android app with complete headers
+      // E1-E4 STRATEGIES: Progressive fallback system
+      const resilienceStrategies = [
+        // E1: Cookies + UA residencial
         {
-          name: 'Android App',
+          name: 'E1_Cookies_UA_Residencial',
           args: [
             url, '--dump-json', '--no-warnings', '--skip-download',
-            '--extractor-args', 'youtube:player_client=android',
-            '--user-agent', 'com.google.android.youtube/18.43.45 (Linux; U; Android 13; SM-G991B) gzip',
-            '--add-header', 'X-YouTube-Client-Name:3',
-            '--add-header', 'X-YouTube-Client-Version:18.43.45',
-            '--add-header', 'X-YouTube-API-Key:AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w',
-            '--add-header', 'Accept-Language:en-US,en;q=0.9',
-            '--add-header', 'Accept-Encoding:gzip, deflate',
-            '--add-header', 'Content-Type:application/json'
+            '-f', 'bestaudio',
+            '--cookies-from-browser', 'chrome',
+            '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            '--sleep-interval', '3',
+            '--max-sleep-interval', '9',
+            '--extractor-args', 'youtube:player_client=web'
           ]
         },
-        // Strategy 2: Smart TV with complete authentication
+        // E2: PO-Token para 403 errors
         {
-          name: 'Smart TV',
+          name: 'E2_PO_Token',
           args: [
             url, '--dump-json', '--no-warnings', '--skip-download',
-            '--extractor-args', 'youtube:player_client=tv_embedded',
-            '--user-agent', 'Mozilla/5.0 (SMART-TV; LINUX; Tizen 7.0) AppleWebKit/537.36 (KHTML, like Gecko) 94.0.4606.31/7.0 TV Safari/537.36',
-            '--add-header', 'X-YouTube-Client-Name:85',
-            '--add-header', 'X-YouTube-Client-Version:7.20231030.13.00',
-            '--add-header', 'Origin:https://www.youtube.com',
-            '--add-header', 'Referer:https://www.youtube.com/tv'
+            '-f', 'bestaudio',
+            '--extractor-args', 'youtube:player_client=mweb;po_token=mweb.gvs+',
+            '--user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1',
+            '--sleep-interval', '2',
+            '--max-sleep-interval', '6'
           ]
         },
-        // Strategy 3: iOS app with realistic headers
+        // E3: Proxy residencial rotativo
         {
-          name: 'iOS App',
+          name: 'E3_Proxy_Residencial',
           args: [
             url, '--dump-json', '--no-warnings', '--skip-download',
-            '--extractor-args', 'youtube:player_client=ios',
-            '--user-agent', 'com.google.ios.youtube/18.43.4 (iPhone15,3; U; CPU iOS 17_1 like Mac OS X)',
-            '--add-header', 'X-YouTube-Client-Name:5',
-            '--add-header', 'X-YouTube-Client-Version:18.43.4',
-            '--add-header', 'X-YouTube-API-Key:AIzaSyB-63vPrdThhKuerbB2N_l7Kwwcxj6yUAc'
+            '-f', 'bestaudio',
+            '--proxy', process.env.YTDLP_PROXY || 'http://proxy-residential.example.com:8080',
+            '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            '--sleep-interval', '4',
+            '--max-sleep-interval', '12',
+            '--extractor-args', 'youtube:player_client=web'
           ]
         },
-        // Strategy 4: Safari browser simulation
+        // E4: WireGuard túnel doméstico
         {
-          name: 'Safari Browser',
+          name: 'E4_WireGuard_Home',
           args: [
             url, '--dump-json', '--no-warnings', '--skip-download',
+            '-f', 'bestaudio',
+            '--source-address', process.env.HOME_IP || '192.168.1.100',
+            '--user-agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15',
+            '--sleep-interval', '5',
+            '--max-sleep-interval', '15',
             '--extractor-args', 'youtube:player_client=web',
-            '--user-agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15',
             '--add-header', 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             '--add-header', 'Accept-Language:en-US,en;q=0.5',
             '--add-header', 'Accept-Encoding:gzip, deflate, br',
@@ -1344,80 +1512,57 @@ export async function POST(request: NextRequest) {
         }
       ];
 
-      // Advanced retry system with human-like behavior
+      // E1-E4 RESILIENT RETRY SYSTEM with exponential back-off
       let successfulStrategy = null;
       
-      // Shuffle strategies for randomness (avoid predictable patterns)
-      const shuffledStrategies = [...infoStrategies].sort(() => Math.random() - 0.5);
+      // Try E1-E4 strategies sequentially (prioritized order)
+      const prioritizedStrategies = resilienceStrategies;
       
-      for (let strategyIndex = 0; strategyIndex < shuffledStrategies.length; strategyIndex++) {
-        const strategy = shuffledStrategies[strategyIndex];
-        const maxRetries = 2; // Reduce retries per strategy, but test more strategies
-        let retryCount = 0;
+      for (let strategyIndex = 0; strategyIndex < prioritizedStrategies.length; strategyIndex++) {
+        const strategy = prioritizedStrategies[strategyIndex];
         
-        // Human-like delay before starting each strategy (2-8 seconds)
-        const preStrategyDelay = 2000 + Math.random() * 6000;
-        console.log(`⏳ Human-like delay before ${strategy.name}: ${Math.round(preStrategyDelay)}ms`);
-        await new Promise(resolve => setTimeout(resolve, preStrategyDelay));
+        console.log(`🔄 Trying ${strategy.name}...`);
         
-        while (retryCount < maxRetries) {
-          try {
-            const attempt = retryCount + 1;
-            console.log(`🎯 Trying ${strategy.name} strategy (attempt ${attempt}/${maxRetries})...`);
+        try {
+          // Use retry with exponential back-off for this strategy
+          const result = await retryWithBackoff(async () => {
+            console.log(`🎯 Executing ${strategy.name}...`);
             
-            // Extended timeout for better reliability
-            const timeoutMs = 45000; // 45 seconds
+            // Extended timeout for better reliability  
+            const timeoutMs = 60000; // 60 seconds for resilient strategies
             const timeoutPromise = new Promise((_, reject) => 
               setTimeout(() => reject(new Error(`${strategy.name} timeout after ${timeoutMs}ms`)), timeoutMs)
             );
             
             const execPromise = ytdl.execPromise(strategy.args);
-            const result = await Promise.race([execPromise, timeoutPromise]) as string;
+            const execResult = await Promise.race([execPromise, timeoutPromise]) as string;
             
-            videoInfo = JSON.parse(result);
-            successfulStrategy = strategy.name;
-            console.log(`🚀 SUCCESS! ${strategy.name} strategy worked on attempt ${attempt}!`);
-            break;
-          } catch (error) {
-            retryCount++;
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            console.log(`❌ ${strategy.name} attempt ${retryCount} failed: ${errorMessage.substring(0, 200)}`);
-            
-            // Check if it's a bot detection error specifically
-            const isBotDetection = errorMessage.includes('Sign in to confirm you\'re not a bot') ||
-                                 errorMessage.includes('bot') ||
-                                 errorMessage.includes('captcha');
-            
-            // Check if it's a rate limit or temporary error
-            const isTemporaryError = errorMessage.includes('429') || 
-                                   errorMessage.includes('rate limit') ||
-                                   errorMessage.includes('timeout') ||
-                                   errorMessage.includes('connection') ||
-                                   errorMessage.includes('network') ||
-                                   errorMessage.includes('HTTP Error 5');
-            
-            if (retryCount < maxRetries && (isTemporaryError || isBotDetection)) {
-              // Human-like delays: 3-15 seconds for bot detection, 1-5 for others
-              const baseDelay = isBotDetection ? 3000 + Math.random() * 12000 : 1000 + Math.random() * 4000;
-              
-              console.log(`⏳ ${isBotDetection ? 'Bot detection' : 'Temporary'} error, waiting ${Math.round(baseDelay)}ms before retry...`);
-              await new Promise(resolve => setTimeout(resolve, baseDelay));
-            } else if (retryCount >= maxRetries) {
-              console.log(`💥 ${strategy.name} exhausted after ${maxRetries} attempts, switching strategy...`);
-              break;
-            }
+            return JSON.parse(execResult);
+          }, 5, 2000, strategy.name);
+          
+          videoInfo = result;
+          successfulStrategy = strategy.name;
+          console.log(`🚀 SUCCESS! ${strategy.name} strategy worked with retry system!`);
+          break;
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          console.log(`❌ ${strategy.name} failed completely: ${errorMessage.substring(0, 150)}`);
+          
+          // Check if it's a bot detection error specifically
+          const isBotDetection = errorMessage.includes('Sign in to confirm you\'re not a bot') ||
+                               errorMessage.includes('bot') ||
+                               errorMessage.includes('captcha');
+          
+          if (isBotDetection) {
+            console.log(`🤖 Bot detection confirmed with ${strategy.name} - trying next strategy...`);
           }
+          
+          // Continue to next strategy
+          continue;
         }
         
         // If we got videoInfo, break out of the strategy loop
         if (videoInfo) break;
-        
-        // Human-like pause between different strategies (1-4 seconds)
-        if (strategyIndex < shuffledStrategies.length - 1) {
-          const interStrategyDelay = 1000 + Math.random() * 3000;
-          console.log(`🔄 Switching to next strategy in ${Math.round(interStrategyDelay)}ms...`);
-          await new Promise(resolve => setTimeout(resolve, interStrategyDelay));
-        }
       }
 
       } // End of method 4 audio-first block
@@ -1656,6 +1801,37 @@ export async function POST(request: NextRequest) {
       
       setProgress(sourceId, 45);
       
+      // FALLBACK: Try closed captions first before audio processing
+      try {
+        console.log('🎬 Checking for closed captions before audio processing...');
+        const closedCaptionResult = await tryClosedCaptions(videoId, ytdl);
+        
+        if (closedCaptionResult && closedCaptionResult.segments.length > 0) {
+          console.log(`✅ Using closed captions! Found ${closedCaptionResult.segments.length} segments`);
+          
+          // Save transcript directly
+          await saveTranscript(sourceId, {
+            sourceId,
+            segments: closedCaptionResult.segments,
+            words: closedCaptionResult.words,
+            speakers: closedCaptionResult.speakers,
+          });
+          
+          setProgress(sourceId, 100);
+          setTimeout(() => deleteProgress(sourceId), 5000);
+          
+          return NextResponse.json({ 
+            segments: closedCaptionResult.segments,
+            words: closedCaptionResult.words,
+            speakers: closedCaptionResult.speakers,
+            message: `Successfully extracted ${closedCaptionResult.segments.length} segments from closed captions`,
+            closed_captions: true
+          });
+        }
+      } catch (captionError) {
+        console.log('⚠️ Closed captions not available, proceeding with Whisper transcription...');
+      }
+      
       // Check if file exists and has content
       console.log('Checking downloaded file...');
       try {
@@ -1702,6 +1878,30 @@ export async function POST(request: NextRequest) {
       const needsChunking = fileStats.size > MAX_FILE_SIZE;
       
       console.log(`File size check: ${fileStats.size} bytes, needs chunking: ${needsChunking}`);
+      
+      // PREPROCESSING: Convert to 16kHz mono for optimal Whisper performance
+      console.log('🔧 Preprocessing audio for Whisper (16kHz mono)...');
+      let preprocessedAudioPath: string;
+      
+      try {
+        preprocessedAudioPath = await preprocessAudioForWhisper(actualAudioPath);
+        console.log('✅ Audio preprocessing completed');
+        
+        // Update file stats after preprocessing
+        const newStats = await fs.stat(preprocessedAudioPath);
+        console.log(`📊 Preprocessed file size: ${newStats.size} bytes`);
+        
+        // Clean up original file
+        await fs.unlink(actualAudioPath).catch(() => {});
+        actualAudioPath = preprocessedAudioPath;
+        
+        // Recalculate chunking needs based on new file size
+        const needsChunkingAfterPreprocess = newStats.size > MAX_FILE_SIZE;
+        console.log(`Chunking needed after preprocessing: ${needsChunkingAfterPreprocess}`);
+        
+      } catch (preprocessError) {
+        console.log('⚠️ Audio preprocessing failed, using original file:', preprocessError);
+      }
       
       let transcription: {
         segments?: Array<{ start: number; end: number; text: string }>;
