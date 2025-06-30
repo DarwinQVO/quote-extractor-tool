@@ -8,6 +8,9 @@ Add these environment variables in Railway Dashboard:
 # Bright Data Proxy (CRITICAL)
 YTDLP_PROXY=http://brd-customer-hl_16699f5c-zone-residential_proxy1:j24ifit7dkc6@brd.superproxy.io:33335
 
+# Optional: YouTube API for enhanced caption extraction
+YOUTUBE_API_KEY=your_youtube_api_key
+
 # Optional: Home IP for WireGuard fallback
 HOME_IP=192.168.1.100
 

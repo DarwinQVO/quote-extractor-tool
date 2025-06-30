@@ -628,68 +628,157 @@ async function extractWithHTMLScraping(videoId: string): Promise<any> {
   };
 }
 
-async function extractYouTubeAutoCaption(videoId: string): Promise<{ segments: any[], words: any[], speakers: any[] } | null> {
-  console.log('🎯 Extracting YouTube auto-generated captions...');
+// Helper function to save and return transcript
+async function saveAndReturnTranscript(sourceId: string, transcript: { segments: any[], words: any[], speakers: any[] }, method: string) {
+  await saveTranscript(sourceId, {
+    sourceId,
+    segments: transcript.segments,
+    words: transcript.words || [],
+    speakers: transcript.speakers || [{ originalName: 'Speaker 1', customName: 'Speaker 1' }],
+  });
+  
+  setProgress(sourceId, 100);
+  setTimeout(() => deleteProgress(sourceId), 5000);
+  
+  return NextResponse.json({ 
+    segments: transcript.segments,
+    words: transcript.words || [],
+    speakers: transcript.speakers || [{ originalName: 'Speaker 1', customName: 'Speaker 1' }],
+    message: `Successfully extracted ${transcript.segments.length} segments via ${method}`,
+    method: method,
+    success: true
+  });
+}
+
+// Enhanced YouTube API v3 Captions extraction
+async function extractCaptionsViaAPI(videoId: string): Promise<{ segments: any[], words: any[], speakers: any[] } | null> {
+  console.log('🔑 Extracting captions via YouTube API v3...');
   
   try {
-    // Method 1: Try YouTube transcript API (unofficial but works)
-    const transcriptUrl = `https://youtubetranscript.com/?server_vid2=${videoId}`;
+    // Use YouTube Data API to get available captions
+    const apiKey = process.env.YOUTUBE_API_KEY || 'AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w';
+    const captionsListUrl = `https://www.googleapis.com/youtube/v3/captions?part=snippet&videoId=${videoId}&key=${apiKey}`;
     
-    let response = await fetch(transcriptUrl, {
+    const response = await fetch(captionsListUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json, text/plain, */*',
-        'Referer': 'https://youtubetranscript.com/',
-        'Origin': 'https://youtubetranscript.com'
+        'Accept': 'application/json'
       }
     });
     
     if (response.ok) {
       const data = await response.json();
-      if (data && data.length > 0) {
-        return convertTranscriptToSegments(data);
-      }
-    }
-    
-    // Method 2: Direct YouTube caption API
-    const captionUrl = `https://www.youtube.com/api/timedtext?v=${videoId}&lang=en&fmt=json3`;
-    
-    response = await fetch(captionUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json',
-        'Referer': `https://www.youtube.com/watch?v=${videoId}`
-      }
-    });
-    
-    if (response.ok) {
-      const captionData = await response.json();
-      if (captionData && captionData.events) {
-        return convertYouTubeCaptionsToSegments(captionData.events);
-      }
-    }
-    
-    // Method 3: Try alternative caption extraction
-    const altUrl = `https://video.google.com/timedtext?lang=en&v=${videoId}`;
-    
-    response = await fetch(altUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
-    });
-    
-    if (response.ok) {
-      const xmlText = await response.text();
-      if (xmlText && xmlText.includes('<text')) {
-        return convertXMLCaptionsToSegments(xmlText);
+      
+      // Look for English captions (auto-generated or manual)
+      const englishCaptions = data.items?.find((item: any) => 
+        item.snippet.language === 'en' || 
+        item.snippet.language === 'en-US'
+      );
+      
+      if (englishCaptions) {
+        // Download the actual caption content
+        const captionId = englishCaptions.id;
+        const captionDownloadUrl = `https://www.googleapis.com/youtube/v3/captions/${captionId}?key=${apiKey}&tfmt=srt`;
+        
+        const captionResponse = await fetch(captionDownloadUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          }
+        });
+        
+        if (captionResponse.ok) {
+          const srtContent = await captionResponse.text();
+          return parseSRTCaptions(srtContent);
+        }
       }
     }
     
     return null;
   } catch (error) {
-    console.log('❌ Auto-caption extraction failed:', error instanceof Error ? error.message : error);
+    console.log('❌ API caption extraction failed:', error instanceof Error ? error.message : error);
     return null;
   }
+}
+
+// Enhanced auto-caption extraction with multiple fallbacks
+async function extractYouTubeAutoCaption(videoId: string): Promise<{ segments: any[], words: any[], speakers: any[] } | null> {
+  console.log('🎯 Extracting YouTube auto-generated captions...');
+  
+  const methods = [
+    {
+      name: 'YouTube Internal API',
+      execute: async () => {
+        const response = await fetch(`https://www.youtube.com/api/timedtext?v=${videoId}&lang=en&fmt=json3`, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/json',
+            'Referer': `https://www.youtube.com/watch?v=${videoId}`,
+            'Accept-Language': 'en-US,en;q=0.9'
+          }
+        });
+        
+        if (response.ok) {
+          const captionData = await response.json();
+          if (captionData && captionData.events) {
+            return convertYouTubeCaptionsToSegments(captionData.events);
+          }
+        }
+        return null;
+      }
+    },
+    {
+      name: 'YouTube XML API',
+      execute: async () => {
+        const response = await fetch(`https://video.google.com/timedtext?lang=en&v=${videoId}`, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          }
+        });
+        
+        if (response.ok) {
+          const xmlText = await response.text();
+          if (xmlText && xmlText.includes('<text')) {
+            return convertXMLCaptionsToSegments(xmlText);
+          }
+        }
+        return null;
+      }
+    },
+    {
+      name: 'Alternative Caption API',
+      execute: async () => {
+        const response = await fetch(`https://www.youtube.com/api/timedtext?v=${videoId}&lang=en&fmt=srv3`, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15',
+            'Referer': 'https://www.youtube.com/'
+          }
+        });
+        
+        if (response.ok) {
+          const xmlText = await response.text();
+          if (xmlText && xmlText.includes('<text')) {
+            return convertXMLCaptionsToSegments(xmlText);
+          }
+        }
+        return null;
+      }
+    }
+  ];
+  
+  for (const method of methods) {
+    try {
+      console.log(`🔄 Trying ${method.name}...`);
+      const result = await method.execute();
+      if (result) {
+        console.log(`✅ ${method.name} succeeded!`);
+        return result;
+      }
+    } catch (error) {
+      console.log(`❌ ${method.name} failed:`, error instanceof Error ? error.message.substring(0, 100) : error);
+    }
+  }
+  
+  return null;
 }
 
 function convertTranscriptToSegments(transcript: any[]): { segments: any[], words: any[], speakers: any[] } {
@@ -724,28 +813,70 @@ function convertYouTubeCaptionsToSegments(events: any[]): { segments: any[], wor
   };
 }
 
+// Parse SRT captions from YouTube API
+function parseSRTCaptions(srtContent: string): { segments: any[], words: any[], speakers: any[] } {
+  const segments = [];
+  const blocks = srtContent.split('\n\n').filter(block => block.trim());
+  
+  for (const block of blocks) {
+    const lines = block.split('\n');
+    if (lines.length >= 3) {
+      const timeLine = lines[1];
+      const textLines = lines.slice(2).join(' ');
+      
+      // Parse SRT timestamp: 00:00:01,234 --> 00:00:05,678
+      const timeMatch = timeLine.match(/(\d{2}):(\d{2}):(\d{2}),(\d{3}) --> (\d{2}):(\d{2}):(\d{2}),(\d{3})/);
+      if (timeMatch) {
+        const startTime = parseInt(timeMatch[1]) * 3600 + parseInt(timeMatch[2]) * 60 + parseInt(timeMatch[3]) + parseInt(timeMatch[4]) / 1000;
+        const endTime = parseInt(timeMatch[5]) * 3600 + parseInt(timeMatch[6]) * 60 + parseInt(timeMatch[7]) + parseInt(timeMatch[8]) / 1000;
+        
+        segments.push({
+          speaker: 'Speaker 1',
+          start: startTime,
+          end: endTime,
+          text: textLines.replace(/<[^>]*>/g, '').trim() // Remove HTML tags
+        });
+      }
+    }
+  }
+  
+  return {
+    segments,
+    words: [],
+    speakers: [{ originalName: 'Speaker 1', customName: 'Speaker 1' }]
+  };
+}
+
 function convertXMLCaptionsToSegments(xmlText: string): { segments: any[], words: any[], speakers: any[] } {
-  const textMatches = xmlText.match(/<text start="([^"]+)" dur="([^"]+)"[^>]*>([^<]+)<\/text>/g) || [];
+  const textMatches = xmlText.match(/<text start="([^"]+)"(?: dur="([^"]+)")?(?: end="([^"]+)")?[^>]*>([^<]+)<\/text>/g) || [];
   
   const segments = textMatches.map((match: string, index: number) => {
     const startMatch = match.match(/start="([^"]+)"/);
     const durMatch = match.match(/dur="([^"]+)"/);
+    const endMatch = match.match(/end="([^"]+)"/);
     const textMatch = match.match(/>([^<]+)</);
     
     const start = parseFloat(startMatch?.[1] || '0');
-    const duration = parseFloat(durMatch?.[1] || '4');
-    const text = textMatch?.[1]?.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>') || '';
+    let end = start + 4; // Default 4 second duration
+    
+    if (endMatch) {
+      end = parseFloat(endMatch[1]);
+    } else if (durMatch) {
+      end = start + parseFloat(durMatch[1]);
+    }
+    
+    const text = textMatch?.[1]?.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'") || '';
     
     return {
       speaker: 'Speaker 1',
       start,
-      end: start + duration,
-      text
+      end,
+      text: text.trim()
     };
   });
   
   return {
-    segments,
+    segments: segments.filter(seg => seg.text.length > 0),
     words: [],
     speakers: [{ originalName: 'Speaker 1', customName: 'Speaker 1' }]
   };
@@ -1375,35 +1506,54 @@ export async function POST(request: NextRequest) {
       // REVOLUTIONARY APPROACH: Try YouTube auto-generated captions FIRST
       console.log('🚀 Trying revolutionary transcript-first approach...');
       
-      // Method 0: YouTube Auto-Generated Captions (Bypass audio completely!)
+      // ENTERPRISE HYBRID SYSTEM: Multiple caption sources
+      console.log('🎯 ENTERPRISE TRANSCRIPTION SYSTEM - Trying multiple caption sources...');
+      
+      // Method 0A: YouTube Auto-Generated Captions (Primary)
       try {
-        console.log('🎯 Checking for auto-generated captions...');
+        console.log('📺 Method 0A: YouTube auto-captions...');
         const transcript = await extractYouTubeAutoCaption(videoId);
         if (transcript && transcript.segments.length > 0) {
-          console.log(`✅ Auto-captions found! ${transcript.segments.length} segments`);
-          
-          // Save transcript directly and skip audio download completely
-          await saveTranscript(sourceId, {
-            sourceId,
-            segments: transcript.segments,
-            words: transcript.words || [],
-            speakers: transcript.speakers || [{ originalName: 'Speaker 1', customName: 'Speaker 1' }],
-          });
-          
-          setProgress(sourceId, 100);
-          setTimeout(() => deleteProgress(sourceId), 5000);
-          
-          return NextResponse.json({ 
-            segments: transcript.segments,
-            words: transcript.words || [],
-            speakers: transcript.speakers || [{ originalName: 'Speaker 1', customName: 'Speaker 1' }],
-            message: `Successfully extracted ${transcript.segments.length} segments from auto-captions`,
-            auto_caption: true
-          });
+          console.log(`✅ Auto-captions SUCCESS! ${transcript.segments.length} segments`);
+          return await saveAndReturnTranscript(sourceId, transcript, 'YouTube Auto-Captions');
         }
       } catch (captionError) {
-        console.log('⚠️ Auto-captions not available:', captionError instanceof Error ? captionError.message : captionError);
+        console.log('⚠️ Auto-captions failed:', captionError instanceof Error ? captionError.message.substring(0, 100) : captionError);
       }
+      
+      // Method 0B: YouTube API v3 Captions (Secondary)
+      try {
+        console.log('🔑 Method 0B: YouTube API v3 captions...');
+        const apiCaptions = await extractCaptionsViaAPI(videoId);
+        if (apiCaptions && apiCaptions.segments.length > 0) {
+          console.log(`✅ API captions SUCCESS! ${apiCaptions.segments.length} segments`);
+          return await saveAndReturnTranscript(sourceId, apiCaptions, 'YouTube API Captions');
+        }
+      } catch (apiError) {
+        console.log('⚠️ API captions failed:', apiError instanceof Error ? apiError.message.substring(0, 100) : apiError);
+      }
+      
+      // Method 0C: Closed Captions via yt-dlp (Tertiary)
+      try {
+        console.log('🎬 Method 0C: Closed captions via yt-dlp...');
+        const ytdl = await getYTDlpWrap();
+        const closedCaptions = await tryClosedCaptions(videoId, ytdl);
+        if (closedCaptions && closedCaptions.segments.length > 0) {
+          console.log(`✅ Closed captions SUCCESS! ${closedCaptions.segments.length} segments`);
+          return await saveAndReturnTranscript(sourceId, closedCaptions, 'Closed Captions');
+        }
+      } catch (ccError) {
+        console.log('⚠️ Closed captions failed:', ccError instanceof Error ? ccError.message.substring(0, 100) : ccError);
+      }
+      
+      console.log('❌ ALL CAPTION METHODS FAILED - Checking if audio extraction is worth attempting...');
+      
+      // INTELLIGENT DECISION: Only try audio if video is under 30 minutes  
+      let shouldTryAudio = false;
+      let videoDuration = 0;
+      
+      // Try to get video duration first to make intelligent decision
+      console.log('🎯 Getting video metadata to make intelligent extraction decision...');
       
       // Method 1: YouTube oEmbed API (Public, no restrictions)
       let metadataExtractionStrategy = null;
@@ -1643,11 +1793,51 @@ export async function POST(request: NextRequest) {
       }
       
       const parsedInfo = typeof videoInfo === 'object' ? videoInfo as YouTubeDLInfo : null;
+      videoDuration = parsedInfo?.duration || 0;
+      
       console.log('Video info retrieved:', parsedInfo ? {
         title: parsedInfo.title,
         duration: parsedInfo.duration,
         formats: parsedInfo.formats?.length || 0
       } : 'String response');
+      
+      // INTELLIGENT DECISION SYSTEM
+      console.log('🧠 INTELLIGENT EXTRACTION DECISION:');
+      console.log(`📊 Video duration: ${videoDuration}s (${Math.round(videoDuration/60)} minutes)`);
+      
+      // Decision criteria (enterprise-level)
+      const isShortVideo = videoDuration <= 1800; // 30 minutes
+      const hasReliableMetadata = parsedInfo && !parsedInfo._minimal_metadata;
+      const botDetectionLikely = true; // Assume bot detection is active in 2025
+      
+      shouldTryAudio = isShortVideo && hasReliableMetadata;
+      
+      console.log('🎯 Decision factors:');
+      console.log(`  - Duration <= 30min: ${isShortVideo} (${videoDuration <= 1800})`);
+      console.log(`  - Reliable metadata: ${hasReliableMetadata}`);
+      console.log(`  - Bot detection risk: ${botDetectionLikely}`);
+      console.log(`  - Final decision: ${shouldTryAudio ? 'ATTEMPT AUDIO' : 'SKIP AUDIO - TOO RISKY/LONG'}`);
+      
+      if (!shouldTryAudio) {
+        console.log('❌ ENTERPRISE DECISION: Skipping audio extraction due to:');
+        if (!isShortVideo) console.log('  - Video too long (>30min) - high failure rate');
+        if (!hasReliableMetadata) console.log('  - No reliable metadata - extraction likely to fail');
+        console.log('  - Current YouTube bot detection makes audio extraction unreliable');
+        
+        setProgress(sourceId, 100);
+        setTimeout(() => deleteProgress(sourceId), 5000);
+        
+        return NextResponse.json({
+          error: 'Transcription unavailable',
+          message: videoDuration > 1800 
+            ? `Video is ${Math.round(videoDuration/60)} minutes long. Audio extraction currently unreliable for videos over 30 minutes due to YouTube bot detection.`
+            : 'No captions available and audio extraction currently unreliable due to YouTube bot detection.',
+          suggestion: 'Please try a video with auto-generated captions or closed captions available.',
+          duration: videoDuration,
+          method_attempted: ['YouTube Auto-Captions', 'YouTube API Captions', 'Closed Captions'],
+          status: 'no_captions_available'
+        }, { status: 422 });
+      }
       
       setProgress(sourceId, 25);
       
