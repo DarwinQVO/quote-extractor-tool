@@ -69,9 +69,9 @@ def transcribe(video_id: str) -> Optional[str]:
         print(f"❌ Proxy configuration error: {e}")
         return None
     
-    # Get whisper model size from environment
-    model_size = os.getenv('WHISPER_MODEL_SIZE', 'large-v3')
-    print(f"🎯 Using Whisper model: {model_size}")
+    # Get whisper model size from environment - optimized for Railway
+    model_size = os.getenv('WHISPER_MODEL_SIZE', 'base')  # Use base for speed on Railway
+    print(f"🎯 Using Whisper model: {model_size} (optimized for Railway)")
     
     # Build yt-dlp command EXACTLY like your working curl
     youtube_url = f"https://youtu.be/{video_id}"
@@ -87,15 +87,16 @@ def transcribe(video_id: str) -> Optional[str]:
     
     yt_dlp_cmd = [
         'yt-dlp',
-        '-f', 'bestaudio[ext=m4a]',
+        '-f', 'bestaudio[ext=m4a]/bestaudio',  # Fallback to any audio format
         '--proxy', bright_proxy_full,  # Full format with embedded auth
-        '--concurrent-fragments', '5',
-        '--fragment-retries', 'infinite',
-        '--retries', 'infinite', 
-        '--throttled-rate', '2M',
+        '--concurrent-fragments', '3',  # Reduced for stability
+        '--fragment-retries', '3',      # Limited retries for speed
+        '--retries', '3',               # Limited retries for speed
+        '--throttled-rate', '5M',       # Faster download
         '--no-check-certificate',
         '--ignore-errors',
-        '-v',  # Verbose for debugging
+        '--no-warnings',                # Reduce noise
+        '--quiet',                      # Less verbose for speed
         '-o', '-',  # Output to stdout
         youtube_url
     ]
@@ -168,28 +169,21 @@ def transcribe(video_id: str) -> Optional[str]:
             
         print(f"✅ Audio pipeline complete. Received {len(audio_data)} bytes")
         
-        # Initialize Whisper model
+        # Initialize Whisper model - optimized for Railway
         print(f"🤖 Initializing Whisper model: {model_size}")
         try:
-            # Map model sizes for openai-whisper
-            model_map = {
-                'large-v3': 'large',
-                'medium': 'medium',
-                'small': 'small'
-            }
-            whisper_model = model_map.get(model_size, 'medium')
+            # Use base model for speed on Railway
+            whisper_model = 'base' if model_size in ['large-v3', 'large'] else model_size
+            print(f"🚀 Loading optimized model: {whisper_model}")
             model = whisper.load_model(whisper_model)
         except Exception as e:
             print(f"❌ Failed to load Whisper model: {e}")
-            # Fallback to base model if large fails
-            if model_size == 'large-v3':
-                print("🔄 Falling back to base model...")
-                try:
-                    model = whisper.load_model("base")
-                except Exception as e2:
-                    print(f"❌ Fallback model also failed: {e2}")
-                    return None
-            else:
+            # Fallback to tiny model for maximum speed
+            print("🔄 Falling back to tiny model for speed...")
+            try:
+                model = whisper.load_model("tiny")
+            except Exception as e2:
+                print(f"❌ Fallback model also failed: {e2}")
                 return None
         
         # Save audio to temporary file for whisper (it expects file path)
@@ -202,8 +196,13 @@ def transcribe(video_id: str) -> Optional[str]:
             # Transcribe audio
             print("🎤 Transcribing audio with OpenAI Whisper...")
             
-            # Transcribe with Spanish language preference
-            result = model.transcribe(temp_audio_path, language="es")
+            # Transcribe with optimized settings for speed
+            result = model.transcribe(
+                temp_audio_path, 
+                language="es",
+                fp16=False,  # Use FP32 for stability on Railway
+                verbose=False  # Reduce output noise
+            )
             
             if result and 'text' in result:
                 result_text = result['text'].strip()

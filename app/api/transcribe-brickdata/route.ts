@@ -84,23 +84,43 @@ export async function POST(request: NextRequest) {
     console.log(`📄 Script: ${pythonScript}`);
     console.log(`🎯 Video ID: ${videoId}`);
     
-    // Execute Python transcription with timeout
-    const transcriptionTimeout = 600000; // 10 minutes
-    const { stdout, stderr } = await execAsync(
-      `python3 "${pythonScript}" "${videoId}"`,
-      {
-        env: pythonEnv,
-        timeout: transcriptionTimeout,
-        maxBuffer: 10 * 1024 * 1024 // 10MB buffer
+    // Execute Python transcription with optimized timeout and error handling
+    const transcriptionTimeout = 180000; // 3 minutes - enterprise optimization
+    
+    console.log('🚀 ENTERPRISE: Starting optimized Bright Data transcription...');
+    
+    try {
+      const { stdout, stderr } = await execAsync(
+        `timeout 180 python3 "${pythonScript}" "${videoId}"`,
+        {
+          env: pythonEnv,
+          timeout: transcriptionTimeout,
+          maxBuffer: 25 * 1024 * 1024, // 25MB buffer for large outputs
+          killSignal: 'SIGTERM'
+        }
+      );
+      
+      console.log('✅ Python process completed within timeout');
+      console.log('📝 Python transcription output:');
+      console.log(stdout);
+      
+      if (stderr) {
+        console.log('⚠️ Python transcription stderr:');
+        console.log(stderr);
       }
-    );
-    
-    console.log('📝 Python transcription output:');
-    console.log(stdout);
-    
-    if (stderr) {
-      console.log('⚠️ Python transcription stderr:');
-      console.log(stderr);
+    } catch (pythonError) {
+      console.error('❌ Python transcription process failed:', pythonError);
+      
+      // Handle timeout specifically
+      if (pythonError.signal === 'SIGTERM' || pythonError.code === 'TIMEOUT') {
+        console.log('⏰ Transcription timeout - video may be too long or proxy slow');
+        return NextResponse.json({
+          error: 'Transcription timeout',
+          details: 'Video processing took too long. Try a shorter video or check proxy speed.'
+        }, { status: 408 });
+      }
+      
+      throw pythonError;
     }
     
     // Parse transcription result from stdout
