@@ -19,8 +19,8 @@ except ImportError:
     sys.exit(1)
 
 
-def get_proxy_config() -> dict:
-    """Build Bright Data proxy configuration from environment variables."""
+def get_proxy_config() -> str:
+    """Build Bright Data proxy configuration exactly like your working curl."""
     user = os.getenv('PROXY_USER')
     password = os.getenv('PROXY_PASS')
     host = os.getenv('PROXY_HOST')
@@ -35,18 +35,14 @@ def get_proxy_config() -> dict:
         ] if not val]
         raise ValueError(f"Missing proxy environment variables: {', '.join(missing)}")
     
-    # Build connection string like Bright Data's official format
-    brd_connectStr = f"{user}:{password}@{host}:{port}"
+    # Use EXACT format that works in your curl command
+    # curl --proxy brd.superproxy.io:33335 --proxy-user user:pass
+    proxy_url = f"http://{host}:{port}"
     
-    proxy_config = {
-        'http': f'http://{brd_connectStr}',
-        'https': f'https://{brd_connectStr}',
-        'connect_str': brd_connectStr
-    }
+    print(f"🔐 DEBUG: Proxy URL: {proxy_url}")
+    print(f"🔐 DEBUG: Proxy Auth: {user[:20]}...:{password[:3]}...")
     
-    print(f"🔐 DEBUG: Bright Data proxy: {user[:15]}...@{host}:{port}")
-    
-    return proxy_config
+    return proxy_url, user, password
 
 
 def transcribe(video_id: str) -> Optional[str]:
@@ -67,7 +63,7 @@ def transcribe(video_id: str) -> Optional[str]:
     
     # Get proxy configuration
     try:
-        proxy_config = get_proxy_config()
+        proxy_url, proxy_user, proxy_pass = get_proxy_config()
         print(f"🌐 Using Bright Data proxy: {os.getenv('PROXY_HOST')}:{os.getenv('PROXY_PORT')}")
     except ValueError as e:
         print(f"❌ Proxy configuration error: {e}")
@@ -77,21 +73,29 @@ def transcribe(video_id: str) -> Optional[str]:
     model_size = os.getenv('WHISPER_MODEL_SIZE', 'large-v3')
     print(f"🎯 Using Whisper model: {model_size}")
     
-    # Build yt-dlp command for streaming with Bright Data proxy
+    # Build yt-dlp command EXACTLY like your working curl
     youtube_url = f"https://youtu.be/{video_id}"
     
-    # Use HTTP proxy for yt-dlp (Bright Data recommendation)
-    proxy_url = proxy_config['http']  # Use http version for yt-dlp
+    # URL-encode the credentials properly for yt-dlp
+    from urllib.parse import quote
+    encoded_user = quote(proxy_user, safe='')
+    encoded_pass = quote(proxy_pass, safe='')
+    
+    bright_proxy_full = f"http://{encoded_user}:{encoded_pass}@{os.getenv('PROXY_HOST')}:{os.getenv('PROXY_PORT')}"
+    
+    print(f"🔐 ENCODED PROXY DEBUG: http://{encoded_user[:20]}...@{os.getenv('PROXY_HOST')}:{os.getenv('PROXY_PORT')}")
     
     yt_dlp_cmd = [
         'yt-dlp',
         '-f', 'bestaudio[ext=m4a]',
-        '--proxy', proxy_url,
+        '--proxy', bright_proxy_full,  # Full format with embedded auth
         '--concurrent-fragments', '5',
         '--fragment-retries', 'infinite',
-        '--retries', 'infinite',
+        '--retries', 'infinite', 
         '--throttled-rate', '2M',
-        '--no-check-certificate',  # Add for SSL issues
+        '--no-check-certificate',
+        '--ignore-errors',
+        '-v',  # Verbose for debugging
         '-o', '-',  # Output to stdout
         youtube_url
     ]

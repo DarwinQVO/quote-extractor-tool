@@ -42,11 +42,28 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Process video locally
+// Process video locally with Bright Data support
 app.post('/process-video', async (req, res) => {
   const { sourceId, url, cloudApiUrl } = req.body;
   
   console.log(`🏠 LOCAL: Processing video ${sourceId} from ${url}`);
+  
+  // Check for Bright Data proxy configuration
+  const brightDataConfig = {
+    host: process.env.PROXY_HOST || process.env.BRIGHTDATA_HOST,
+    port: process.env.PROXY_PORT || process.env.BRIGHTDATA_PORT,
+    user: process.env.PROXY_USER || process.env.BRIGHTDATA_USER,
+    pass: process.env.PROXY_PASS || process.env.BRIGHTDATA_PASS
+  };
+  
+  const useBrightData = brightDataConfig.host && brightDataConfig.port && 
+                       brightDataConfig.user && brightDataConfig.pass;
+  
+  if (useBrightData) {
+    console.log(`🌐 LOCAL: Using Bright Data proxy ${brightDataConfig.host}:${brightDataConfig.port}`);
+  } else {
+    console.log(`🏠 LOCAL: Using direct connection (no proxy)`);
+  }
   
   let tempFiles = [];
   

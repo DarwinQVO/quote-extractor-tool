@@ -183,7 +183,7 @@ export async function POST(request: NextRequest) {
     
     let transcript = null;
     
-    // Strategy A: BRIGHTDATA - Try Bright Data proxy transcription first
+    // Strategy A: BRIGHTDATA - Try Bright Data proxy transcription first (ONLINE VERSION)
     const brightDataConfig = {
       host: process.env.PROXY_HOST || process.env.BRIGHTDATA_HOST,
       port: process.env.PROXY_PORT || process.env.BRIGHTDATA_PORT,
@@ -199,11 +199,10 @@ export async function POST(request: NextRequest) {
     
     if (brightDataConfig.host && brightDataConfig.port && brightDataConfig.user && brightDataConfig.pass) {
       try {
-        console.log('🌐 BRIGHTDATA: Using Bright Data proxy for transcription...');
+        console.log('🌐 BRIGHTDATA: Using Bright Data proxy for transcription (100% ONLINE)...');
         console.log(`🔗 Proxy: ${brightDataConfig.host}:${brightDataConfig.port}`);
         
-        // Call Bright Data transcription endpoint  
-        // Use current host or fallback to Railway domain
+        // Call optimized Bright Data transcription endpoint  
         const baseUrl = process.env.NODE_ENV === 'production' 
           ? 'https://quote-extractor-tool-production.up.railway.app'
           : 'http://localhost:3000';
@@ -216,13 +215,13 @@ export async function POST(request: NextRequest) {
         
         if (brightDataResponse.ok) {
           const brightDataResult = await brightDataResponse.json();
-          console.log('✅ BRIGHTDATA: Transcription completed successfully');
+          console.log('✅ BRIGHTDATA: Online transcription completed successfully');
           
           // Return early since Bright Data endpoint handles everything
           return NextResponse.json(brightDataResult);
         } else {
           const errorText = await brightDataResponse.text();
-          console.log('⚠️ BRIGHTDATA: Transcription failed, falling back to other methods');
+          console.log('⚠️ BRIGHTDATA: Online transcription failed, falling back to other methods');
           console.log('Error:', errorText);
         }
       } catch (error) {
