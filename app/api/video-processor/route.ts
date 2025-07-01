@@ -178,12 +178,62 @@ export async function POST(request: NextRequest) {
     await saveSource(videoSource);
     console.log('✅ Video source saved with metadata');
     
-    // **STEP 2: EXTRACT TRANSCRIPT - MULTIPLE STRATEGIES**
+    // **STEP 2: EXTRACT TRANSCRIPT - HYBRID STRATEGY**
     console.log('📝 STEP 2: Extracting transcript...');
     
     let transcript = null;
     
-    // Strategy A: ENTERPRISE YouTube Transcript API (Multiple approaches)
+    // Strategy A: HYBRID - Try local processor first (avoids IP restrictions)
+    try {
+      console.log('🏠 HYBRID: Checking for local audio processor...');
+      
+      // Check if local processor is available
+      const localHealthCheck = await fetch('http://localhost:3001/health', {
+        timeout: 3000
+      });
+      
+      if (localHealthCheck.ok) {
+        console.log('✅ HYBRID: Local processor available, using local processing');
+        
+        // Send to local processor
+        const localResponse = await fetch('http://localhost:3001/process-video', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sourceId,
+            url,
+            cloudApiUrl: process.env.RAILWAY_PUBLIC_DOMAIN || 'https://quote-extractor-tool-production.up.railway.app'
+          }),
+          timeout: 300000 // 5 minutes for processing
+        });
+        
+        if (localResponse.ok) {
+          const localResult = await localResponse.json();
+          console.log('✅ HYBRID: Local processing completed');
+          
+          // Transcript will be saved by local processor via /api/local-transcript
+          // We just need to indicate success here
+          transcript = {
+            id: sourceId,
+            sourceId,
+            segments: [], // Will be populated by local processor
+            words: [],
+            text: 'Processing locally...',
+            language: 'en',
+            createdAt: new Date(),
+            duration: metadata.duration
+          };
+        } else {
+          console.log('⚠️ HYBRID: Local processing failed, falling back to cloud');
+        }
+      } else {
+        console.log('⚠️ HYBRID: Local processor not available, using cloud processing');
+      }
+    } catch (error) {
+      console.log('⚠️ HYBRID: Local processor check failed, using cloud processing:', error);
+    }
+    
+    // Strategy B: ENTERPRISE YouTube Transcript API (Multiple approaches)
     try {
       console.log('📡 ENTERPRISE: Trying YouTube Transcript API...');
       
@@ -251,7 +301,7 @@ export async function POST(request: NextRequest) {
       console.log('❌ YouTube Transcript API failed:', error);
     }
     
-    // Strategy B: ENTERPRISE AssemblyAI Transcription (Most Reliable)
+    // Strategy C: ENTERPRISE AssemblyAI Transcription (Most Reliable)
     const assemblyApiKey = process.env.ASSEMBLY_AI_API_KEY;
     if (!transcript && assemblyApiKey && assemblyApiKey.length > 10) {
       try {
@@ -374,7 +424,7 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    // Strategy C: Enterprise-grade fallback transcript (ONLY if APIs unavailable)
+    // Strategy D: Enterprise-grade fallback transcript (ONLY if APIs unavailable)
     if (!transcript) {
       console.log('⚠️ ENTERPRISE FALLBACK: APIs not configured - creating structured fallback...');
       console.log('💡 Configure GOOGLE_API_KEY and OPENAI_API_KEY for real extraction');
