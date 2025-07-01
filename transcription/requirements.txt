@@ -1,13 +1,11 @@
 # Audio streaming and transcription dependencies
-yt-dlp[fast]==0.0.20240630.dev0  # nightly version for latest features
+yt-dlp>=2025.6.30  # Latest stable version
 ffmpeg-python==0.2.0
-whisper-cpp>=1.6.0
 
-# Additional dependencies for whisper-cpp
-pybind11>=2.10.0
-numpy>=1.24.0
-torch>=2.0.0
-torchaudio>=2.0.0
+# Simplified whisper for Railway compatibility
+openai-whisper>=20231117
+# Note: whisper-cpp can be problematic on Railway, using openai-whisper instead
 
-# Utility dependencies
+# Essential dependencies
 requests>=2.31.0
+numpy>=1.24.0

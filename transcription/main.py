@@ -13,9 +13,9 @@ import signal
 from typing import Optional
 
 try:
-    from whisper_cpp import Whisper
+    import whisper
 except ImportError:
-    print("Error: whisper-cpp not installed. Run: pip install whisper-cpp")
+    print("Error: openai-whisper not installed. Run: pip install openai-whisper")
     sys.exit(1)
 
 
@@ -151,51 +151,66 @@ def transcribe(video_id: str) -> Optional[str]:
         # Initialize Whisper model
         print(f"🤖 Initializing Whisper model: {model_size}")
         try:
-            model = Whisper(f"{model_size}.bin")
+            # Map model sizes for openai-whisper
+            model_map = {
+                'large-v3': 'large',
+                'medium': 'medium',
+                'small': 'small'
+            }
+            whisper_model = model_map.get(model_size, 'medium')
+            model = whisper.load_model(whisper_model)
         except Exception as e:
             print(f"❌ Failed to load Whisper model: {e}")
-            # Fallback to medium model if large fails
+            # Fallback to base model if large fails
             if model_size == 'large-v3':
-                print("🔄 Falling back to medium model...")
+                print("🔄 Falling back to base model...")
                 try:
-                    model = Whisper("medium.bin")
+                    model = whisper.load_model("base")
                 except Exception as e2:
                     print(f"❌ Fallback model also failed: {e2}")
                     return None
             else:
                 return None
         
-        # Transcribe audio
-        print("🎤 Transcribing audio with Whisper...")
-        audio_io = io.BytesIO(audio_data)
+        # Save audio to temporary file for whisper (it expects file path)
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_audio:
+            temp_audio.write(audio_data)
+            temp_audio_path = temp_audio.name
         
         try:
+            # Transcribe audio
+            print("🎤 Transcribing audio with OpenAI Whisper...")
+            
             # Transcribe with Spanish language preference
-            transcript = model.transcribe(audio_io, language="es")
+            result = model.transcribe(temp_audio_path, language="es")
             
-            if transcript and hasattr(transcript, 'text'):
-                result_text = transcript.text.strip()
-            elif isinstance(transcript, str):
-                result_text = transcript.strip()
-            elif isinstance(transcript, dict) and 'text' in transcript:
-                result_text = transcript['text'].strip()
+            if result and 'text' in result:
+                result_text = result['text'].strip()
             else:
-                result_text = str(transcript).strip()
-            
-            if result_text:
-                print("✅ Transcription completed successfully!")
-                print("📝 Transcript:")
-                print("-" * 50)
-                print(result_text)
-                print("-" * 50)
-                return result_text
-            else:
-                print("⚠️ Transcription completed but result is empty")
-                return None
+                result_text = str(result).strip()
                 
-        except Exception as e:
-            print(f"❌ Transcription failed: {e}")
+        finally:
+            # Clean up temporary file
+            try:
+                os.unlink(temp_audio_path)
+            except:
+                pass
+        
+        if result_text:
+            print("✅ Transcription completed successfully!")
+            print("📝 Transcript:")
+            print("-" * 50)
+            print(result_text)
+            print("-" * 50)
+            return result_text
+        else:
+            print("⚠️ Transcription completed but result is empty")
             return None
+                
+    except Exception as e:
+        print(f"❌ Transcription failed: {e}")
+        return None
             
     except subprocess.TimeoutExpired:
         print("❌ Pipeline timeout - killing processes")
