@@ -191,6 +191,12 @@ export async function POST(request: NextRequest) {
       pass: process.env.PROXY_PASS || process.env.BRIGHTDATA_PASS
     };
     
+    console.log('🔍 BRIGHTDATA DEBUG: Checking proxy configuration...');
+    console.log(`Host: ${brightDataConfig.host ? '✅' : '❌'} (${brightDataConfig.host})`);
+    console.log(`Port: ${brightDataConfig.port ? '✅' : '❌'} (${brightDataConfig.port})`);
+    console.log(`User: ${brightDataConfig.user ? '✅' : '❌'} (${brightDataConfig.user ? 'SET' : 'NOT SET'})`);
+    console.log(`Pass: ${brightDataConfig.pass ? '✅' : '❌'} (${brightDataConfig.pass ? 'SET' : 'NOT SET'})`);
+    
     if (brightDataConfig.host && brightDataConfig.port && brightDataConfig.user && brightDataConfig.pass) {
       try {
         console.log('🌐 BRIGHTDATA: Using Bright Data proxy for transcription...');
