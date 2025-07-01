@@ -19,8 +19,8 @@ except ImportError:
     sys.exit(1)
 
 
-def get_proxy_config() -> str:
-    """Build proxy string from environment variables."""
+def get_proxy_config() -> dict:
+    """Build Bright Data proxy configuration from environment variables."""
     user = os.getenv('PROXY_USER')
     password = os.getenv('PROXY_PASS')
     host = os.getenv('PROXY_HOST')
@@ -35,15 +35,18 @@ def get_proxy_config() -> str:
         ] if not val]
         raise ValueError(f"Missing proxy environment variables: {', '.join(missing)}")
     
-    # URL encode user and password to handle special characters
-    from urllib.parse import quote
-    encoded_user = quote(user, safe='')
-    encoded_pass = quote(password, safe='')
+    # Build connection string like Bright Data's official format
+    brd_connectStr = f"{user}:{password}@{host}:{port}"
     
-    proxy_url = f"https://{encoded_user}:{encoded_pass}@{host}:{port}"
-    print(f"🔐 DEBUG: Proxy URL format: https://***:***@{host}:{port}")
+    proxy_config = {
+        'http': f'http://{brd_connectStr}',
+        'https': f'https://{brd_connectStr}',
+        'connect_str': brd_connectStr
+    }
     
-    return proxy_url
+    print(f"🔐 DEBUG: Bright Data proxy: {user[:15]}...@{host}:{port}")
+    
+    return proxy_config
 
 
 def transcribe(video_id: str) -> Optional[str]:
@@ -64,8 +67,8 @@ def transcribe(video_id: str) -> Optional[str]:
     
     # Get proxy configuration
     try:
-        proxy_url = get_proxy_config()
-        print(f"🌐 Using BrickData proxy: {os.getenv('PROXY_HOST')}:{os.getenv('PROXY_PORT')}")
+        proxy_config = get_proxy_config()
+        print(f"🌐 Using Bright Data proxy: {os.getenv('PROXY_HOST')}:{os.getenv('PROXY_PORT')}")
     except ValueError as e:
         print(f"❌ Proxy configuration error: {e}")
         return None
@@ -74,8 +77,12 @@ def transcribe(video_id: str) -> Optional[str]:
     model_size = os.getenv('WHISPER_MODEL_SIZE', 'large-v3')
     print(f"🎯 Using Whisper model: {model_size}")
     
-    # Build yt-dlp command for streaming
+    # Build yt-dlp command for streaming with Bright Data proxy
     youtube_url = f"https://youtu.be/{video_id}"
+    
+    # Use HTTP proxy for yt-dlp (Bright Data recommendation)
+    proxy_url = proxy_config['http']  # Use http version for yt-dlp
+    
     yt_dlp_cmd = [
         'yt-dlp',
         '-f', 'bestaudio[ext=m4a]',
@@ -84,6 +91,7 @@ def transcribe(video_id: str) -> Optional[str]:
         '--fragment-retries', 'infinite',
         '--retries', 'infinite',
         '--throttled-rate', '2M',
+        '--no-check-certificate',  # Add for SSL issues
         '-o', '-',  # Output to stdout
         youtube_url
     ]
