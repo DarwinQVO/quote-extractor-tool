@@ -24,9 +24,9 @@ COPY package*.json ./
 # Install Node.js dependencies
 RUN npm ci --only=production
 
-# Copy Python transcription requirements
+# Copy Python transcription requirements and install with break-system-packages
 COPY transcription/requirements.txt ./transcription/
-RUN pip3 install --no-cache-dir -r transcription/requirements.txt
+RUN pip3 install --break-system-packages --no-cache-dir -r transcription/requirements.txt
 
 # Copy all source code
 COPY . .

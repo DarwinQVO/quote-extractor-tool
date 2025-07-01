@@ -31,23 +31,23 @@ export async function POST(request: NextRequest) {
     console.log('🎯 Video ID:', videoId);
     console.log('🆔 Source ID:', sourceId);
     
-    // Check BrickData proxy configuration
+    // Check Bright Data proxy configuration
     const proxyConfig = {
-      host: process.env.PROXY_HOST || process.env.BRICKDATA_HOST,
-      port: process.env.PROXY_PORT || process.env.BRICKDATA_PORT,
-      user: process.env.PROXY_USER || process.env.BRICKDATA_USER,
-      pass: process.env.PROXY_PASS || process.env.BRICKDATA_PASS
+      host: process.env.PROXY_HOST || process.env.BRIGHTDATA_HOST,
+      port: process.env.PROXY_PORT || process.env.BRIGHTDATA_PORT,
+      user: process.env.PROXY_USER || process.env.BRIGHTDATA_USER,
+      pass: process.env.PROXY_PASS || process.env.BRIGHTDATA_PASS
     };
     
     if (!proxyConfig.host || !proxyConfig.port || !proxyConfig.user || !proxyConfig.pass) {
-      console.log('⚠️ Missing BrickData proxy configuration');
+      console.log('⚠️ Missing Bright Data proxy configuration');
       return NextResponse.json({ 
-        error: 'BrickData proxy not configured',
+        error: 'Bright Data proxy not configured',
         details: 'Please set PROXY_HOST, PROXY_PORT, PROXY_USER, PROXY_PASS environment variables'
       }, { status: 500 });
     }
     
-    console.log(`🌐 Using BrickData proxy: ${proxyConfig.host}:${proxyConfig.port}`);
+    console.log(`🌐 Using Bright Data proxy: ${proxyConfig.host}:${proxyConfig.port}`);
     
     // Save initial source metadata
     const initialSource = {

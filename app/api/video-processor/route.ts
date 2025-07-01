@@ -183,44 +183,44 @@ export async function POST(request: NextRequest) {
     
     let transcript = null;
     
-    // Strategy A: BRICKDATA - Try BrickData proxy transcription first
-    const brickDataConfig = {
-      host: process.env.PROXY_HOST || process.env.BRICKDATA_HOST,
-      port: process.env.PROXY_PORT || process.env.BRICKDATA_PORT,
-      user: process.env.PROXY_USER || process.env.BRICKDATA_USER,
-      pass: process.env.PROXY_PASS || process.env.BRICKDATA_PASS
+    // Strategy A: BRIGHTDATA - Try Bright Data proxy transcription first
+    const brightDataConfig = {
+      host: process.env.PROXY_HOST || process.env.BRIGHTDATA_HOST,
+      port: process.env.PROXY_PORT || process.env.BRIGHTDATA_PORT,
+      user: process.env.PROXY_USER || process.env.BRIGHTDATA_USER,
+      pass: process.env.PROXY_PASS || process.env.BRIGHTDATA_PASS
     };
     
-    if (brickDataConfig.host && brickDataConfig.port && brickDataConfig.user && brickDataConfig.pass) {
+    if (brightDataConfig.host && brightDataConfig.port && brightDataConfig.user && brightDataConfig.pass) {
       try {
-        console.log('🌐 BRICKDATA: Using BrickData proxy for transcription...');
-        console.log(`🔗 Proxy: ${brickDataConfig.host}:${brickDataConfig.port}`);
+        console.log('🌐 BRIGHTDATA: Using Bright Data proxy for transcription...');
+        console.log(`🔗 Proxy: ${brightDataConfig.host}:${brightDataConfig.port}`);
         
-        // Call BrickData transcription endpoint
-        const brickDataResponse = await fetch(`${process.env.RAILWAY_PUBLIC_DOMAIN || 'http://localhost:3000'}/api/transcribe-brickdata`, {
+        // Call Bright Data transcription endpoint
+        const brightDataResponse = await fetch(`${process.env.RAILWAY_PUBLIC_DOMAIN || 'http://localhost:3000'}/api/transcribe-brickdata`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sourceId, url }),
-          timeout: 600000 // 10 minutes for BrickData processing
+          timeout: 600000 // 10 minutes for Bright Data processing
         });
         
-        if (brickDataResponse.ok) {
-          const brickDataResult = await brickDataResponse.json();
-          console.log('✅ BRICKDATA: Transcription completed successfully');
+        if (brightDataResponse.ok) {
+          const brightDataResult = await brightDataResponse.json();
+          console.log('✅ BRIGHTDATA: Transcription completed successfully');
           
-          // Return early since BrickData endpoint handles everything
-          return NextResponse.json(brickDataResult);
+          // Return early since Bright Data endpoint handles everything
+          return NextResponse.json(brightDataResult);
         } else {
-          const errorText = await brickDataResponse.text();
-          console.log('⚠️ BRICKDATA: Transcription failed, falling back to other methods');
+          const errorText = await brightDataResponse.text();
+          console.log('⚠️ BRIGHTDATA: Transcription failed, falling back to other methods');
           console.log('Error:', errorText);
         }
       } catch (error) {
-        console.log('⚠️ BRICKDATA: Error calling BrickData transcription:', error);
+        console.log('⚠️ BRIGHTDATA: Error calling Bright Data transcription:', error);
       }
     } else {
-      console.log('⚠️ BRICKDATA: Proxy not configured, skipping BrickData transcription');
-      console.log('💡 Configure PROXY_HOST, PROXY_PORT, PROXY_USER, PROXY_PASS for BrickData support');
+      console.log('⚠️ BRIGHTDATA: Proxy not configured, skipping Bright Data transcription');
+      console.log('💡 Configure PROXY_HOST, PROXY_PORT, PROXY_USER, PROXY_PASS for Bright Data support');
     }
     
     // Strategy B: HYBRID - Try local processor (original hybrid functionality)
