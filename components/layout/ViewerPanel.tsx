@@ -171,7 +171,9 @@ Return only the enhanced text, no explanations.`);
     setTranscript,
     quotes,
     updateMultipleQuotes,
-    updateSource
+    updateSource,
+    addSource,
+    setActiveSource
   } = useStore();
   
   const activeSource = sources.find(s => s.id === activeSourceId);
@@ -620,6 +622,50 @@ Return only the enhanced text, no explanations.`);
                 )}
               </div>
             </div>
+            
+            {/* ENTERPRISE TEST: Quick Add Button */}
+            <div className="mb-4">
+              <button 
+                onClick={async () => {
+                  const testUrl = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+                  const sourceId = `test_${Date.now()}`;
+                  
+                  const newSourceId = addSource(testUrl, sourceId);
+                  setActiveSource(newSourceId);
+                  
+                  updateSource(newSourceId, {
+                    status: 'processing',
+                    transcriptStatus: 'processing'
+                  });
+                  
+                  try {
+                    const response = await fetch('/api/video-processor', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ sourceId: newSourceId, url: testUrl }),
+                    });
+                    
+                    const result = await response.json();
+                    if (result.success) {
+                      updateSource(newSourceId, {
+                        title: result.video.title,
+                        channel: result.video.channel,
+                        duration: result.video.duration,
+                        thumbnail: result.video.thumbnail,
+                        status: 'ready',
+                        transcriptStatus: 'ready'
+                      });
+                    }
+                  } catch (error) {
+                    console.error('Test failed:', error);
+                  }
+                }}
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 mb-2"
+              >
+                🧪 Test Add Video (Rick Roll)
+              </button>
+            </div>
+            
             <p className="text-sm text-muted-foreground">
               Transcript will appear here once the video is processed
             </p>

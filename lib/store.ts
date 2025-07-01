@@ -20,7 +20,7 @@ interface AppState {
   isOnline: boolean;
   lastSyncTime: number;
   
-  addSource: (url: string) => string;
+  addSource: (url: string, sourceId?: string) => string;
   updateSource: (id: string, updates: Partial<VideoSource>) => void;
   removeSource: (id: string) => void;
   setActiveSource: (id: string | null) => void;
@@ -96,8 +96,8 @@ export const useStore = create<AppState>((set, get) => ({
   isOnline: typeof window !== 'undefined' ? navigator.onLine : true,
   lastSyncTime: 0, // Force fresh load
   
-  addSource: (url) => {
-    const id = Date.now().toString();
+  addSource: (url, sourceId) => {
+    const id = sourceId || Date.now().toString();
     const newSource: VideoSource = {
       id,
       url,

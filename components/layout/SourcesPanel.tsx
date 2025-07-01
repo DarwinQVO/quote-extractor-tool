@@ -34,40 +34,67 @@ export function SourcesPanel() {
     }
     
     setIsLoading(true);
+    console.log('🚀 ENTERPRISE: Adding new YouTube video:', url);
     
     try {
-      const sourceId = addSource(url);
+      // ENTERPRISE FIX: Use video-processor API directly
+      const sourceId = `source_${Date.now()}`;
       
-      const metadata = await fetchYouTubeMetadata(url);
-      
-      updateSource(sourceId, {
-        title: metadata.title,
-        channel: metadata.channel,
-        duration: metadata.duration,
-        thumbnail: metadata.thumbnail,
-        description: metadata.description,
-        uploadDate: metadata.uploadDate ? new Date(metadata.uploadDate) : undefined,
-        viewCount: metadata.viewCount,
-        status: 'pending',
+      // Add source to store immediately
+      const actualSourceId = addSource(url, sourceId);
+      updateSource(actualSourceId, {
+        status: 'processing',
+        transcriptStatus: 'processing'
       });
       
-      setUrl("");
+      setActiveSource(actualSourceId);
       setIsDialogOpen(false);
+      setUrl("");
       
       toast({
-        title: "Success",
-        description: "Video added successfully",
+        title: "Processing video...",
+        description: "Extracting metadata and generating transcript",
       });
-    } catch {
+      
+      // Call the video-processor API that we know works
+      const response = await fetch('/api/video-processor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceId: actualSourceId, url }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      console.log('✅ ENTERPRISE: Video processed successfully:', result);
+      
+      if (result.success && result.video) {
+        updateSource(actualSourceId, {
+          title: result.video.title,
+          channel: result.video.channel,
+          duration: result.video.duration,
+          thumbnail: result.video.thumbnail,
+          status: 'ready',
+          transcriptStatus: 'ready'
+        });
+        
+        toast({
+          title: "Video processed successfully!",
+          description: `"${result.video.title}" is ready for quotes`,
+        });
+      } else {
+        throw new Error('Video processing failed');
+      }
+      
+    } catch (error) {
+      console.error('❌ ENTERPRISE: Error processing video:', error);
+      
       toast({
-        title: "Error",
-        description: "Failed to fetch video metadata",
+        title: "Processing failed",
+        description: "Please check the URL and try again",
         variant: "destructive",
-      });
-      
-      updateSource(sources[sources.length - 1]?.id || '', {
-        status: 'error',
-        error: 'Failed to fetch metadata',
       });
     } finally {
       setIsLoading(false);
