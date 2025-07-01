@@ -1,122 +1,75 @@
-# 🎬 Quote Extractor Tool
+# YouTube Audio Transcription Microservice
 
-A powerful web application that extracts quotes from YouTube videos with perfect citations for Google Docs.
+Micro-servicio CLI que streamea audio de YouTube con yt-dlp, lo re-muestrea con ffmpeg y lo transcribe con whisper.cpp **sin escribir nada en disco**. Todo funciona detrás de un proxy residencial BrickData.
 
-## ✨ Features
+## Variables de Entorno
 
-- **YouTube Integration**: Extract metadata and transcribe any YouTube video
-- **Word-Level Transcription**: OpenAI Whisper with precise word-by-word timestamps
-- **Smart Quote Selection**: Click and drag to select text across multiple segments
-- **Editable Speakers**: Edit speaker names directly in the transcript
-- **Perfect Citations**: Auto-generated citations with clickable YouTube links
-- **Google Docs Ready**: Copy quotes with embedded links that work in Google Docs
-- **Cloud Sync**: Supabase database with real-time synchronization
-- **Offline Support**: Works offline with automatic sync when online
-- **Persistent Storage**: Never lose your work with dual localStorage + cloud backup
+Configura estas variables en Railway:
 
-## 🚀 Live Demo
+```ini
+PROXY_HOST=bricks.mx.smartproxy.com
+PROXY_PORT=10000
+PROXY_USER=TU_USER
+PROXY_PASS=TU_PASS
+VIDEO_ID=dQw4w9WgXcQ
 
-**[Click here to access the app](https://quote-extractor-tool-production.up.railway.app)** *(will be live after Railway deployment)*
-
-## 📋 GitHub Repository
-
-**[View Source Code](https://github.com/DarwinQVO/quote-extractor-tool)**
-
-## 🛠️ Tech Stack
-
-- **Frontend**: Next.js 14 + TypeScript + Tailwind CSS
-- **UI Components**: shadcn/ui + Radix UI
-- **State Management**: Zustand
-- **Database**: Supabase (PostgreSQL)
-- **Transcription**: OpenAI Whisper API
-- **Video Processing**: yt-dlp
-- **Deployment**: Railway (supports long video processing)
-
-## 📱 How to Use
-
-1. **Add YouTube URL**: Click "Add YouTube URL" and paste any YouTube video link
-2. **Wait for Transcription**: The app will automatically extract metadata and transcribe the video
-3. **Select Quotes**: Click and drag across words to select text for quotes
-4. **Edit Speakers**: Click on speaker names to edit them
-5. **Copy to Google Docs**: Use the copy button to get quotes with embedded links
-6. **Export Options**: Export all quotes to Google Docs or copy individually
-
-## 🔧 Key Features Explained
-
-### Word-Level Selection
-- Click and drag across individual words to create precise quotes
-- Works across multiple segments and speakers
-- Real-time visual feedback during selection
-
-### Smart Citations
-- Format: "Quote text" — (Speaker, MON/YYYY)
-- Clickable links that jump to exact timestamp in YouTube
-- Perfect for academic and professional documentation
-
-### Cloud Synchronization
-- All data is automatically saved to Supabase
-- Works offline with sync when connection returns
-- Access your quotes from any device
-
-### Speaker Management
-- Auto-detection of different speakers
-- Easy editing of speaker names
-- Bulk updates across all segments
-
-## 🎯 Perfect For
-
-- **Researchers**: Extract academic quotes with proper citations
-- **Content Creators**: Pull quotes from interviews and podcasts
-- **Students**: Create study notes with precise references
-- **Journalists**: Quote sources accurately with timestamps
-- **Professionals**: Document meetings and presentations
-
-## ⚡ Performance Features
-
-- **Efficient Caching**: Transcripts cached locally and in cloud
-- **Smart Loading**: Only transcribes once per video
-- **Optimized UI**: Smooth scrolling and responsive design
-- **Background Sync**: Non-blocking cloud synchronization
-
-## 🔒 Data & Privacy
-
-- **Your Data**: All quotes and transcripts are private to you
-- **No Tracking**: No analytics or user tracking
-- **Secure Storage**: Enterprise-grade Supabase security
-- **Open Source**: Full transparency in code
-
-## 🚀 Railway Deployment
-
-This app is optimized for Railway deployment to handle long video processing without timeout limits.
-
-### Environment Variables Required:
-```
-OPENAI_API_KEY=sk-proj-your_openai_api_key_here
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-YOUTUBE_DL_SKIP_PYTHON_CHECK=1
-NODE_ENV=production
+# Opcional: Modelo de Whisper (por defecto: large-v3)
+WHISPER_MODEL_SIZE=medium  # Para sistemas con <3GB RAM
 ```
 
-### Railway Deployment Steps:
-1. **Connect Repository**: Link your GitHub repository to Railway
-2. **Add Environment Variables**: 
-   - Go to Railway project settings
-   - Add all variables above (one by one)
-   - Make sure NEXT_PUBLIC variables are exactly as shown
-3. **Deploy**: Railway will automatically build and deploy
-4. **Debug**: Visit `/debug-env` on your deployed app to verify environment variables
-5. **Test**: Upload a YouTube video and create quotes!
+## Ejecución Local
 
-### Troubleshooting:
-- If you see "NEXT_PUBLIC_SUPABASE_URL is missing", verify the environment variables are added correctly in Railway
-- Visit `/debug-env` endpoint to see which variables Railway is detecting
-- Redeploy after adding environment variables to ensure they take effect
+```bash
+# Configurar variables de entorno y ejecutar
+PROXY_HOST=bricks.mx.smartproxy.com \
+PROXY_PORT=10000 \
+PROXY_USER=tu_usuario \
+PROXY_PASS=tu_password \
+python main.py dQw4w9WgXcQ
+```
 
----
+## Despliegue en Railway
 
-*Built with ❤️ for efficient quote extraction and citation management*
+1. Conecta este repositorio a Railway
+2. Configura las variables de entorno en el dashboard
+3. Railway ejecutará automáticamente con el `VIDEO_ID` especificado
 
----
+## Características
 
-**Status**: ✅ Ready for production deployment on Railway
+- ✅ **Sin disco**: Todo el pipeline funciona en RAM
+- ✅ **Proxy residencial**: BrickData para evitar bloqueos de IP
+- ✅ **Retry infinito**: yt-dlp con reintentos automáticos
+- ✅ **Streaming**: Audio se procesa mientras se descarga
+- ✅ **Whisper.cpp**: Transcripción de alta calidad
+- ✅ **Fallback inteligente**: Cambia a modelo medium si large falla
+
+## Pipeline
+
+```
+YouTube → yt-dlp (proxy) → ffmpeg (resample) → whisper.cpp → transcript
+```
+
+## Modelos Whisper
+
+- `large-v3`: Máxima calidad (recomendado para >3GB RAM)
+- `medium`: Balance calidad/velocidad (recomendado para <3GB RAM)
+- `small`: Más rápido pero menor calidad
+
+## Ejemplo de Salida
+
+```
+🚀 Starting transcription for video: dQw4w9WgXcQ
+🌐 Using BrickData proxy: bricks.mx.smartproxy.com:10000
+🎯 Using Whisper model: large-v3
+📡 Downloading audio stream via yt-dlp...
+🔧 Resampling audio with ffmpeg...
+📥 Reading resampled audio data...
+✅ Audio pipeline complete. Received 4582912 bytes
+🤖 Initializing Whisper model: large-v3
+🎤 Transcribing audio with Whisper...
+✅ Transcription completed successfully!
+📝 Transcript:
+--------------------------------------------------
+[Contenido transcrito aquí]
+--------------------------------------------------
+```

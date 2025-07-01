@@ -183,7 +183,47 @@ export async function POST(request: NextRequest) {
     
     let transcript = null;
     
-    // Strategy A: HYBRID - Try local processor first (avoids IP restrictions)
+    // Strategy A: BRICKDATA - Try BrickData proxy transcription first
+    const brickDataConfig = {
+      host: process.env.PROXY_HOST || process.env.BRICKDATA_HOST,
+      port: process.env.PROXY_PORT || process.env.BRICKDATA_PORT,
+      user: process.env.PROXY_USER || process.env.BRICKDATA_USER,
+      pass: process.env.PROXY_PASS || process.env.BRICKDATA_PASS
+    };
+    
+    if (brickDataConfig.host && brickDataConfig.port && brickDataConfig.user && brickDataConfig.pass) {
+      try {
+        console.log('🌐 BRICKDATA: Using BrickData proxy for transcription...');
+        console.log(`🔗 Proxy: ${brickDataConfig.host}:${brickDataConfig.port}`);
+        
+        // Call BrickData transcription endpoint
+        const brickDataResponse = await fetch(`${process.env.RAILWAY_PUBLIC_DOMAIN || 'http://localhost:3000'}/api/transcribe-brickdata`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sourceId, url }),
+          timeout: 600000 // 10 minutes for BrickData processing
+        });
+        
+        if (brickDataResponse.ok) {
+          const brickDataResult = await brickDataResponse.json();
+          console.log('✅ BRICKDATA: Transcription completed successfully');
+          
+          // Return early since BrickData endpoint handles everything
+          return NextResponse.json(brickDataResult);
+        } else {
+          const errorText = await brickDataResponse.text();
+          console.log('⚠️ BRICKDATA: Transcription failed, falling back to other methods');
+          console.log('Error:', errorText);
+        }
+      } catch (error) {
+        console.log('⚠️ BRICKDATA: Error calling BrickData transcription:', error);
+      }
+    } else {
+      console.log('⚠️ BRICKDATA: Proxy not configured, skipping BrickData transcription');
+      console.log('💡 Configure PROXY_HOST, PROXY_PORT, PROXY_USER, PROXY_PASS for BrickData support');
+    }
+    
+    // Strategy B: HYBRID - Try local processor (original hybrid functionality)
     try {
       console.log('🏠 HYBRID: Checking for local audio processor...');
       
