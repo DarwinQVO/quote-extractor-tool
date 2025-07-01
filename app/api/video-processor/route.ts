@@ -183,53 +183,35 @@ export async function POST(request: NextRequest) {
     
     let transcript = null;
     
-    // Strategy A: BRIGHTDATA - Try Bright Data proxy transcription first (ONLINE VERSION)
-    const brightDataConfig = {
-      host: process.env.PROXY_HOST || process.env.BRIGHTDATA_HOST,
-      port: process.env.PROXY_PORT || process.env.BRIGHTDATA_PORT,
-      user: process.env.PROXY_USER || process.env.BRIGHTDATA_USER,
-      pass: process.env.PROXY_PASS || process.env.BRIGHTDATA_PASS
-    };
+    // Strategy A: USE THE WORKING ENDPOINT - 100% ONLINE
+    console.log('🚀 STRATEGY A: Using PROVEN working transcription endpoint...');
     
-    console.log('🔍 BRIGHTDATA DEBUG: Checking proxy configuration...');
-    console.log(`Host: ${brightDataConfig.host ? '✅' : '❌'} (${brightDataConfig.host})`);
-    console.log(`Port: ${brightDataConfig.port ? '✅' : '❌'} (${brightDataConfig.port})`);
-    console.log(`User: ${brightDataConfig.user ? '✅' : '❌'} (${brightDataConfig.user ? 'SET' : 'NOT SET'})`);
-    console.log(`Pass: ${brightDataConfig.pass ? '✅' : '❌'} (${brightDataConfig.pass ? 'SET' : 'NOT SET'})`);
-    
-    if (brightDataConfig.host && brightDataConfig.port && brightDataConfig.user && brightDataConfig.pass) {
-      try {
-        console.log('🌐 BRIGHTDATA: Using Bright Data proxy for transcription (100% ONLINE)...');
-        console.log(`🔗 Proxy: ${brightDataConfig.host}:${brightDataConfig.port}`);
+    try {
+      // Call the WORKING transcription endpoint that's already in your codebase
+      const baseUrl = process.env.NODE_ENV === 'production' 
+        ? 'https://quote-extractor-tool-production.up.railway.app'
+        : 'http://localhost:3000';
         
-        // Call optimized Bright Data transcription endpoint  
-        const baseUrl = process.env.NODE_ENV === 'production' 
-          ? 'https://quote-extractor-tool-production.up.railway.app'
-          : 'http://localhost:3000';
-        const brightDataResponse = await fetch(`${baseUrl}/api/transcribe-enterprise`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sourceId, url }),
-          timeout: 600000 // 10 minutes for Bright Data processing
-        });
+      const workingResponse = await fetch(`${baseUrl}/api/transcribe-working`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceId, url }),
+        timeout: 300000 // 5 minutes
+      });
+      
+      if (workingResponse.ok) {
+        const result = await workingResponse.json();
+        console.log('✅ WORKING TRANSCRIPTION: Completed successfully');
         
-        if (brightDataResponse.ok) {
-          const brightDataResult = await brightDataResponse.json();
-          console.log('✅ BRIGHTDATA: Online transcription completed successfully');
-          
-          // Return early since Bright Data endpoint handles everything
-          return NextResponse.json(brightDataResult);
-        } else {
-          const errorText = await brightDataResponse.text();
-          console.log('⚠️ BRIGHTDATA: Online transcription failed, falling back to other methods');
-          console.log('Error:', errorText);
-        }
-      } catch (error) {
-        console.log('⚠️ BRIGHTDATA: Error calling Bright Data transcription:', error);
+        // The working endpoint already handles everything
+        return NextResponse.json(result);
+      } else {
+        const errorText = await workingResponse.text();
+        console.log('⚠️ WORKING TRANSCRIPTION: Failed, trying other methods');
+        console.log('Error:', errorText);
       }
-    } else {
-      console.log('⚠️ BRIGHTDATA: Proxy not configured, skipping Bright Data transcription');
-      console.log('💡 Configure PROXY_HOST, PROXY_PORT, PROXY_USER, PROXY_PASS for Bright Data support');
+    } catch (error) {
+      console.log('⚠️ WORKING TRANSCRIPTION: Error:', error);
     }
     
     // Strategy B: HYBRID - Try local processor (original hybrid functionality)
