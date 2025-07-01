@@ -206,7 +206,7 @@ export async function POST(request: NextRequest) {
         const baseUrl = process.env.NODE_ENV === 'production' 
           ? 'https://quote-extractor-tool-production.up.railway.app'
           : 'http://localhost:3000';
-        const brightDataResponse = await fetch(`${baseUrl}/api/transcribe-brickdata`, {
+        const brightDataResponse = await fetch(`${baseUrl}/api/brightdata-direct`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sourceId, url }),
