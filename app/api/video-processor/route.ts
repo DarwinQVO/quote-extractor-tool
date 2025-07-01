@@ -196,8 +196,12 @@ export async function POST(request: NextRequest) {
         console.log('🌐 BRIGHTDATA: Using Bright Data proxy for transcription...');
         console.log(`🔗 Proxy: ${brightDataConfig.host}:${brightDataConfig.port}`);
         
-        // Call Bright Data transcription endpoint
-        const brightDataResponse = await fetch(`${process.env.RAILWAY_PUBLIC_DOMAIN || 'http://localhost:3000'}/api/transcribe-brickdata`, {
+        // Call Bright Data transcription endpoint  
+        // Use current host or fallback to Railway domain
+        const baseUrl = process.env.NODE_ENV === 'production' 
+          ? 'https://quote-extractor-tool-production.up.railway.app'
+          : 'http://localhost:3000';
+        const brightDataResponse = await fetch(`${baseUrl}/api/transcribe-brickdata`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sourceId, url }),
