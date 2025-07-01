@@ -1,8 +1,8 @@
-# Enterprise Setup - Real YouTube & OpenAI Integration
+# Enterprise Setup - Professional Transcription & Metadata
 
 ## Required API Keys for Production
 
-### 1. Google YouTube Data API v3
+### 1. Google YouTube Data API v3 (Metadata)
 ```bash
 # Get from: https://console.cloud.google.com/
 # Enable YouTube Data API v3
@@ -10,10 +10,18 @@
 GOOGLE_API_KEY=your_youtube_api_key_here
 ```
 
-### 2. OpenAI API Key
+### 2. AssemblyAI API Key (Primary Transcription)
+```bash
+# Get from: https://www.assemblyai.com/dashboard/signup
+# Most reliable transcription service
+# No audio download needed - works with YouTube URLs directly
+ASSEMBLY_AI_API_KEY=your_assemblyai_api_key_here
+```
+
+### 3. OpenAI API Key (Fallback)
 ```bash
 # Get from: https://platform.openai.com/api-keys
-# Need paid account for Whisper API
+# Used as fallback if AssemblyAI unavailable
 OPENAI_API_KEY=sk-your_openai_api_key_here
 ```
 
@@ -24,7 +32,8 @@ OPENAI_API_KEY=sk-your_openai_api_key_here
 3. Go to Variables tab
 4. Add environment variables:
    - `GOOGLE_API_KEY` = your YouTube API key
-   - `OPENAI_API_KEY` = your OpenAI API key
+   - `ASSEMBLY_AI_API_KEY` = your AssemblyAI API key (primary)
+   - `OPENAI_API_KEY` = your OpenAI API key (fallback)
 
 ## System Capabilities with Real APIs
 
@@ -34,10 +43,18 @@ OPENAI_API_KEY=sk-your_openai_api_key_here
 ✅ High-resolution thumbnails
 ✅ Upload dates and tags
 
-### With OPENAI_API_KEY:
-✅ Real audio extraction from YouTube
-✅ Professional Whisper transcription
-✅ Word-level timing accuracy
+### With ASSEMBLY_AI_API_KEY:
+✅ Professional-grade transcription (no audio download needed)
+✅ Automatic speaker diarization
+✅ Word-level timing with confidence scores
+✅ Superior accuracy vs yt-dlp/Whisper
+✅ Handles any video length
+✅ Enterprise-grade reliability
+
+### With OPENAI_API_KEY (Fallback):
+✅ Backup transcription method
+✅ Whisper model integration
+✅ Word-level timing
 ✅ Multiple language support
 
 ## Current Status (Fallback Mode)

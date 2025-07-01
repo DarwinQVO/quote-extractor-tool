@@ -178,7 +178,7 @@ Return only the enhanced text, no explanations.`);
   const transcript = activeSourceId ? transcripts.get(activeSourceId) : null;
   const progress = activeSourceId ? transcriptionProgress.get(activeSourceId) || 0 : 0;
   
-  // Debug logging
+  // Debug logging and transcript loading fix
   useEffect(() => {
     console.log('🔍 ViewerPanel state update:', {
       activeSourceId,
@@ -188,7 +188,30 @@ Return only the enhanced text, no explanations.`);
       transcriptsInStore: transcripts.size,
       allTranscriptIds: Array.from(transcripts.keys())
     });
-  }, [activeSourceId, transcript, transcripts]);
+    
+    // ENTERPRISE FIX: Force load transcript if missing but source exists
+    if (activeSourceId && !transcript && activeSource?.transcriptStatus === 'ready') {
+      console.log('🔧 ENTERPRISE FIX: Force loading missing transcript for ready source');
+      const loadMissingTranscript = async () => {
+        try {
+          const response = await fetch(`/api/transcripts/${activeSourceId}`);
+          if (response.ok) {
+            const transcriptData = await response.json();
+            setTranscript(activeSourceId, {
+              sourceId: activeSourceId,
+              segments: transcriptData.segments || [],
+              words: transcriptData.words || [],
+              speakers: transcriptData.speakers || [],
+            });
+            console.log('✅ ENTERPRISE FIX: Missing transcript loaded and set');
+          }
+        } catch (error) {
+          console.error('❌ ENTERPRISE FIX: Failed to load missing transcript:', error);
+        }
+      };
+      loadMissingTranscript();
+    }
+  }, [activeSourceId, transcript, transcripts, activeSource, setTranscript]);
   
   // Initialize video validator
   const { validateVideo, isValidating, retryVideoLoad, forceVideoRefresh } = useVideoValidator();
@@ -549,6 +572,16 @@ Return only the enhanced text, no explanations.`);
           </div>
         ) : transcript ? (
           <>
+            {/* ENTERPRISE DEBUG: Show transcript info */}
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm">
+              <div className="font-medium text-green-800 mb-1">✅ Transcript Loaded</div>
+              <div className="text-green-700">
+                Segments: {transcript.segments?.length || 0} | 
+                Words: {transcript.words?.length || 0} | 
+                Duration: {Math.round(transcript.duration || 0)}s
+              </div>
+            </div>
+            
             <WordLevelTranscript
               segments={transcript.segments}
               words={transcript.words}
@@ -558,10 +591,39 @@ Return only the enhanced text, no explanations.`);
               onSpeakerUpdate={handleSpeakerUpdate}
             />
           </>
+        ) : activeSource?.transcriptStatus === 'ready' ? (
+          <div className="text-center py-8">
+            <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm">
+              <div className="font-medium text-yellow-800 mb-1">⚠️ Transcript Missing</div>
+              <div className="text-yellow-700">
+                Source status: {activeSource.transcriptStatus} | 
+                Source ID: {activeSourceId} | 
+                Store has: {transcripts.size} transcripts
+              </div>
+            </div>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+            >
+              Reload Page
+            </button>
+          </div>
         ) : (
-          <p className="text-sm text-muted-foreground text-center py-8">
-            Transcript will appear here once the video is processed
-          </p>
+          <div className="text-center py-8">
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+              <div className="font-medium text-blue-800 mb-1">ℹ️ Status Info</div>
+              <div className="text-blue-700">
+                {activeSource ? (
+                  <>Status: {activeSource.status} | Transcript: {activeSource.transcriptStatus}</>
+                ) : (
+                  "No source selected"
+                )}
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Transcript will appear here once the video is processed
+            </p>
+          </div>
         )}
       </div>
       
