@@ -35,7 +35,15 @@ def get_proxy_config() -> str:
         ] if not val]
         raise ValueError(f"Missing proxy environment variables: {', '.join(missing)}")
     
-    return f"https://{user}:{password}@{host}:{port}"
+    # URL encode user and password to handle special characters
+    from urllib.parse import quote
+    encoded_user = quote(user, safe='')
+    encoded_pass = quote(password, safe='')
+    
+    proxy_url = f"https://{encoded_user}:{encoded_pass}@{host}:{port}"
+    print(f"🔐 DEBUG: Proxy URL format: https://***:***@{host}:{port}")
+    
+    return proxy_url
 
 
 def transcribe(video_id: str) -> Optional[str]:
