@@ -73,7 +73,7 @@ def transcribe(video_id: str) -> Optional[str]:
     model_size = os.getenv('WHISPER_MODEL_SIZE', 'base')  # Use base for speed on Railway
     print(f"🎯 Using Whisper model: {model_size} (optimized for Railway)")
     
-    # Build yt-dlp command EXACTLY like your working curl
+    # ENTERPRISE STRATEGY: Try captions first (most reliable with proxy)
     youtube_url = f"https://youtu.be/{video_id}"
     
     # URL-encode the credentials properly for yt-dlp
@@ -83,20 +83,86 @@ def transcribe(video_id: str) -> Optional[str]:
     
     bright_proxy_full = f"http://{encoded_user}:{encoded_pass}@{os.getenv('PROXY_HOST')}:{os.getenv('PROXY_PORT')}"
     
-    print(f"🔐 ENCODED PROXY DEBUG: http://{encoded_user[:20]}...@{os.getenv('PROXY_HOST')}:{os.getenv('PROXY_PORT')}")
+    print(f"🔐 PROXY CONFIG: Using Bright Data residential proxy")
+    
+    # Strategy 1: Extract captions (MOST RELIABLE)
+    print("📝 STRATEGY 1: Attempting caption extraction (fastest & most reliable)...")
+    
+    caption_file = f"/tmp/{video_id}_captions.vtt"
+    caption_cmd = [
+        'yt-dlp',
+        '--proxy', bright_proxy_full,
+        '--write-auto-sub',      # Download automatic captions
+        '--skip-download',       # Don't download video
+        '--sub-format', 'vtt',   # VTT format
+        '--sub-lang', 'en,es',   # Try English and Spanish
+        '--no-warnings',
+        '--quiet',
+        '--output', f'/tmp/{video_id}',  # Base filename
+        youtube_url
+    ]
+    
+    try:
+        print("🔍 Downloading captions via Bright Data proxy...")
+        result = subprocess.run(caption_cmd, capture_output=True, text=True, timeout=60)
+        
+        # Check for caption files
+        caption_files = [
+            f"/tmp/{video_id}.en.vtt",
+            f"/tmp/{video_id}.es.vtt", 
+            f"/tmp/{video_id}.en-US.vtt",
+            f"/tmp/{video_id}.vtt"
+        ]
+        
+        caption_text = None
+        for cap_file in caption_files:
+            if os.path.exists(cap_file):
+                print(f"✅ Caption file found: {cap_file}")
+                with open(cap_file, 'r', encoding='utf-8') as f:
+                    caption_text = f.read()
+                os.unlink(cap_file)  # Clean up
+                break
+        
+        if caption_text:
+            print("✅ CAPTION EXTRACTION SUCCESSFUL")
+            # Parse VTT format to extract clean text
+            lines = caption_text.split('\n')
+            text_lines = []
+            for line in lines:
+                line = line.strip()
+                if line and not line.startswith('WEBVTT') and '-->' not in line and not line.isdigit():
+                    # Remove HTML tags
+                    clean_line = line.replace('<c>', '').replace('</c>', '')
+                    clean_line = clean_line.strip()
+                    if clean_line:
+                        text_lines.append(clean_line)
+            
+            final_text = ' '.join(text_lines)
+            if final_text:
+                print("📝 Caption text extracted successfully")
+                print("-" * 50)
+                print(final_text[:500] + "..." if len(final_text) > 500 else final_text)
+                print("-" * 50)
+                return final_text
+        else:
+            print("⚠️ No captions found, falling back to audio extraction...")
+            
+    except Exception as e:
+        print(f"❌ Caption extraction failed: {e}")
+    
+    # Strategy 2: Audio extraction (fallback)
+    print("🎵 STRATEGY 2: Attempting audio extraction...")
     
     yt_dlp_cmd = [
         'yt-dlp',
-        '-f', 'bestaudio[ext=m4a]/bestaudio',  # Fallback to any audio format
-        '--proxy', bright_proxy_full,  # Full format with embedded auth
-        '--concurrent-fragments', '3',  # Reduced for stability
-        '--fragment-retries', '3',      # Limited retries for speed
-        '--retries', '3',               # Limited retries for speed
-        '--throttled-rate', '5M',       # Faster download
+        '-f', 'worstaudio',  # Use worst audio to download faster
+        '--proxy', bright_proxy_full,
+        '--extract-audio',
+        '--audio-format', 'mp3',
+        '--audio-quality', '9',  # Lowest quality for speed
         '--no-check-certificate',
-        '--ignore-errors',
-        '--no-warnings',                # Reduce noise
-        '--quiet',                      # Less verbose for speed
+        '--no-warnings',
+        '--quiet',
         '-o', '-',  # Output to stdout
         youtube_url
     ]

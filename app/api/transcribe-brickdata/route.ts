@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
       PROXY_PORT: proxyConfig.port,
       PROXY_USER: proxyConfig.user,
       PROXY_PASS: proxyConfig.pass,
-      WHISPER_MODEL_SIZE: process.env.WHISPER_MODEL_SIZE || 'medium'
+      WHISPER_MODEL_SIZE: 'base'  // Force base model for Railway performance
     };
     
     console.log('🐍 Starting Python transcription process...');
