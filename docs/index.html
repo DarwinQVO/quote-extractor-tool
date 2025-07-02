@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuoteExtractor Pro - Download</title>
+    <meta name="description" content="Download QuoteExtractor Pro for macOS. Professional YouTube quote extraction with AI-powered transcription.">
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="QuoteExtractor Pro - Professional YouTube Quote Extraction">
+    <meta property="og:description" content="Extract precise quotes from YouTube videos with AI-powered transcription">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://darwinqvo.github.io/quote-extractor-tool">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .hero {
+            text-align: center;
+            padding: 4rem 0;
+            color: white;
+        }
+        
+        .logo {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 2rem;
+            background: white;
+            border-radius: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        
+        .logo img {
+            width: 80px;
+            height: 80px;
+        }
+        
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .hero p {
+            font-size: 1.25rem;
+            margin-bottom: 3rem;
+            opacity: 0.9;
+        }
+        
+        .download-card {
+            background: white;
+            border-radius: 16px;
+            padding: 3rem;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .download-btn {
+            display: inline-block;
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 1.2rem 3rem;
+            font-size: 1.2rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 50px;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            box-shadow: 0 6px 20px rgba(44, 62, 80, 0.4);
+            margin-bottom: 1rem;
+        }
+        
+        .download-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(44, 62, 80, 0.6);
+        }
+        
+        .download-btn:active {
+            transform: translateY(-1px);
+        }
+        
+        .version-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin: 2rem 0;
+            padding: 1.5rem;
+            background: #f8f9fa;
+            border-radius: 12px;
+            font-size: 0.9rem;
+        }
+        
+        .version-item {
+            text-align: center;
+        }
+        
+        .version-item strong {
+            display: block;
+            color: #2c3e50;
+            margin-bottom: 0.25rem;
+        }
+        
+        .requirements {
+            margin-top: 2rem;
+        }
+        
+        .requirements h3 {
+            color: #495057;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+        
+        .req-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+        
+        .req-item {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem;
+            background: #e9ecef;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+        
+        .req-item:hover {
+            background: #dee2e6;
+        }
+        
+        .req-item::before {
+            content: "✓";
+            color: #28a745;
+            font-weight: bold;
+            font-size: 1.1rem;
+            margin-right: 0.75rem;
+        }
+        
+        .features {
+            margin-top: 3rem;
+        }
+        
+        .features h3 {
+            color: #495057;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .feature {
+            text-align: center;
+            padding: 2rem;
+            background: #f8f9fa;
+            border-radius: 16px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .feature:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+        
+        .feature-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .feature h4 {
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+        }
+        
+        .installation {
+            margin-top: 3rem;
+            padding: 2rem;
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+            border-radius: 16px;
+        }
+        
+        .installation h3 {
+            color: #1976d2;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+        
+        .install-steps {
+            list-style: none;
+            counter-reset: step-counter;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+        
+        .install-steps li {
+            counter-increment: step-counter;
+            margin-bottom: 1.5rem;
+            padding-left: 3rem;
+            position: relative;
+            background: white;
+            padding: 1rem 1rem 1rem 3rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .install-steps li::before {
+            content: counter(step-counter);
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #1976d2;
+            color: white;
+            width: 2rem;
+            height: 2rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            font-weight: bold;
+        }
+        
+        .warning {
+            background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 50%);
+            border: 1px solid #ffd93d;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-top: 2rem;
+        }
+        
+        .warning h4 {
+            color: #856404;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+        }
+        
+        .warning h4::before {
+            content: "⚠️";
+            margin-right: 0.5rem;
+            font-size: 1.2rem;
+        }
+        
+        .warning p {
+            color: #856404;
+            margin: 0;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 4rem;
+            padding: 3rem;
+            color: white;
+            opacity: 0.8;
+        }
+        
+        .footer p {
+            margin-bottom: 0.5rem;
+        }
+        
+        .github-link {
+            color: #74b9ff;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        
+        .github-link:hover {
+            color: #0984e3;
+        }
+        
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+            
+            .download-card {
+                padding: 2rem;
+                margin: 1rem;
+            }
+            
+            .version-info {
+                grid-template-columns: 1fr;
+                gap: 0.5rem;
+            }
+            
+            .install-steps li {
+                padding-left: 2.5rem;
+            }
+            
+            .install-steps li::before {
+                left: 0.75rem;
+                width: 1.5rem;
+                height: 1.5rem;
+                font-size: 0.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="hero">
+            <div class="logo">
+                <svg width="80" height="80" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="100" height="100" rx="20" fill="#2c3e50"/>
+                    <circle cx="50" cy="25" r="12" fill="white"/>
+                    <circle cx="50" cy="25" r="6" fill="#2c3e50"/>
+                    <path d="M25 45 L75 45 L70 55 L65 65 L55 70 L25 70 Z" fill="white"/>
+                    <rect x="20" y="65" width="8" height="15" rx="2" fill="white"/>
+                </svg>
+            </div>
+            <h1>QuoteExtractor Pro</h1>
+            <p>Professional YouTube Quote Extraction for macOS</p>
+            <p><strong>by Darwin QVO</strong></p>
+        </div>
+        
+        <div class="download-card">
+            <div style="text-align: center; margin-bottom: 2rem;">
+                <a href="https://github.com/DarwinQvo/quote-extractor-tool/releases/latest/download/QuoteExtractor-Pro-1.0.0.dmg" 
+                   class="download-btn" 
+                   id="downloadBtn">
+                    📥 Download for macOS
+                </a>
+                <div style="margin-top: 1rem;">
+                    <a href="https://github.com/DarwinQvo/quote-extractor-tool" 
+                       class="github-link" 
+                       target="_blank">
+                        View on GitHub →
+                    </a>
+                </div>
+            </div>
+            
+            <div class="version-info">
+                <div class="version-item">
+                    <strong>Version</strong>
+                    1.0.0
+                </div>
+                <div class="version-item">
+                    <strong>Size</strong>
+                    ~45 MB
+                </div>
+                <div class="version-item">
+                    <strong>Platform</strong>
+                    macOS 10.13+
+                </div>
+                <div class="version-item">
+                    <strong>Architecture</strong>
+                    Universal
+                </div>
+            </div>
+            
+            <div class="requirements">
+                <h3>System Requirements</h3>
+                <div class="req-grid">
+                    <div class="req-item">macOS 10.13 or later</div>
+                    <div class="req-item">Intel & Apple Silicon</div>
+                    <div class="req-item">4GB RAM minimum</div>
+                    <div class="req-item">500MB storage</div>
+                    <div class="req-item">Internet connection</div>
+                </div>
+            </div>
+            
+            <div class="installation">
+                <h3>📋 Installation Instructions</h3>
+                <ol class="install-steps">
+                    <li>Click the download button above</li>
+                    <li>Double-click the DMG file to mount it</li>
+                    <li>Drag "QuoteExtractor Pro" to Applications</li>
+                    <li>Right-click the app → "Open" → "Open"</li>
+                    <li>Start extracting quotes from YouTube!</li>
+                </ol>
+            </div>
+            
+            <div class="warning">
+                <h4>First Launch Notice</h4>
+                <p>Since this app is not code-signed with Apple, macOS will show a security warning. Simply right-click the app and choose "Open" to bypass this one-time warning.</p>
+            </div>
+        </div>
+        
+        <div class="features">
+            <h3>✨ Key Features</h3>
+            <div class="feature-grid">
+                <div class="feature">
+                    <div class="feature-icon">🎯</div>
+                    <h4>Precision Extraction</h4>
+                    <p>Word-level quote selection with timestamp accuracy</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">🤖</div>
+                    <h4>AI Transcription</h4>
+                    <p>OpenAI Whisper for professional-grade accuracy</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">🖥️</div>
+                    <h4>Native macOS</h4>
+                    <p>Built for macOS with native performance</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">🔒</div>
+                    <h4>Local Processing</h4>
+                    <p>Your data stays on your device</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>© 2025 Darwin QVO. All rights reserved.</p>
+            <p>Built with ❤️ for researchers and content creators</p>
+            <p>
+                <a href="https://github.com/DarwinQvo/quote-extractor-tool" class="github-link">
+                    GitHub Repository
+                </a>
+            </p>
+        </div>
+    </div>
+    
+    <script>
+        // Track download clicks
+        document.getElementById('downloadBtn').addEventListener('click', function() {
+            // Analytics could go here
+            console.log('Download started for QuoteExtractor Pro');
+        });
+        
+        // Check if release exists and update download link
+        async function checkLatestRelease() {
+            try {
+                const response = await fetch('https://api.github.com/repos/DarwinQvo/quote-extractor-tool/releases/latest');
+                const release = await response.json();
+                
+                if (release && release.assets) {
+                    const dmgAsset = release.assets.find(asset => asset.name.endsWith('.dmg'));
+                    if (dmgAsset) {
+                        document.getElementById('downloadBtn').href = dmgAsset.browser_download_url;
+                    }
+                }
+            } catch (error) {
+                console.log('Could not fetch latest release info:', error);
+            }
+        }
+        
+        // Check for latest release on page load
+        checkLatestRelease();
+    </script>
+</body>
+</html>
